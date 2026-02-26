@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
-import { X, Terminal as TerminalIcon } from 'lucide-react'
+import { X, Terminal as TerminalIcon, Loader2 } from 'lucide-react'
 import type { TerminalTab } from '../types'
 import 'xterm/css/xterm.css'
 
@@ -29,7 +29,7 @@ export default function TerminalPanel({
         if (!activeTabId || !containerRef.current) return
 
         const activeTab = tabs.find(t => t.id === activeTabId)
-        if (!activeTab) return
+        if (!activeTab || activeTab.connecting) return
 
         // Hide all terminals
         const container = containerRef.current
@@ -167,7 +167,7 @@ export default function TerminalPanel({
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 200 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 200, position: 'relative' }}>
             {/* Tab bar */}
             <div className="terminal-tabs">
                 {tabs.map(tab => (
@@ -176,9 +176,10 @@ export default function TerminalPanel({
                         className={`terminal-tab ${tab.id === activeTabId ? 'active' : ''}`}
                         onClick={() => onSelectTab(tab.id)}
                     >
-                        <span className={`tab-dot ${tab.connected ? 'connected' : 'disconnected'}`} />
+                        <span className={`tab-dot ${tab.connecting ? 'connecting' : tab.connected ? 'connected' : 'disconnected'}`} />
                         <TerminalIcon size={12} />
                         <span>{tab.name}</span>
+                        {tab.connecting && <Loader2 size={12} className="spin" />}
                         <span
                             className="tab-close"
                             onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id) }}
@@ -191,6 +192,19 @@ export default function TerminalPanel({
 
             {/* Terminal area */}
             <div ref={containerRef} className="terminal-container" />
+
+            {/* Connecting overlay */}
+            {tabs.find(t => t.id === activeTabId)?.connecting && (
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.8)', zIndex: 10,
+                    flexDirection: 'column', gap: 12,
+                }}>
+                    <Loader2 size={28} className="spin" style={{ color: 'var(--accent-blue)' }} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Connecting...</span>
+                </div>
+            )}
         </div>
     )
 }

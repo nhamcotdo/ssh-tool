@@ -117,20 +117,40 @@ export default function App() {
     const conn = connections.find(c => c.id === connectionId)
     if (!conn) return
 
+    // Create tab immediately with 'connecting' status
+    const tempId = `connecting-${connectionId}-${Date.now()}`
+    const pendingTab: TerminalTab = {
+      id: tempId,
+      connectionId,
+      sessionId: '',
+      name: conn.name,
+      connected: false,
+      connecting: true,
+    }
+    setTerminalTabs(prev => [...prev, pendingTab])
+    setActiveTerminalTab(tempId)
+
     const result = await window.sshTool.sshConnect(connectionId)
 
     if (result.success) {
-      const newTab: TerminalTab = {
-        id: result.sessionId,
-        connectionId,
-        sessionId: result.sessionId,
-        name: conn.name,
-        connected: true,
-      }
-      setTerminalTabs(prev => [...prev, newTab])
+      // Replace pending tab with real connected tab
+      setTerminalTabs(prev => prev.map(t =>
+        t.id === tempId
+          ? { ...t, id: result.sessionId, sessionId: result.sessionId, connected: true, connecting: false }
+          : t
+      ))
       setActiveTerminalTab(result.sessionId)
       loadData()
     } else {
+      // Remove the pending tab on failure
+      setTerminalTabs(prev => prev.filter(t => t.id !== tempId))
+      setActiveTerminalTab(prev => {
+        if (prev === tempId) {
+          const remaining = terminalTabs.filter(t => t.id !== tempId)
+          return remaining.length > 0 ? remaining[remaining.length - 1].id : null
+        }
+        return prev
+      })
       alert(`Connection failed: ${result.message}`)
     }
   }

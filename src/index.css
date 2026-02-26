@@ -652,6 +652,11 @@ body,
   background: var(--accent-red);
 }
 
+.terminal-tab .tab-dot.connecting {
+  background: var(--accent-amber);
+  animation: pulse 1.5s infinite;
+}
+
 /* ── Terminal Container ─────────────────────────────────────── */
 .terminal-container {
   flex: 1;
@@ -825,4 +830,19 @@ body,
 
 .sidebar-item.dragging {
   opacity: 0.4;
+}
+
+/* ── Spin animation ─────────────────────────────────────────── */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

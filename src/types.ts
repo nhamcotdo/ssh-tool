@@ -83,4 +83,5 @@ export interface TerminalTab {
   sessionId: string
   name: string
   connected: boolean
+  connecting?: boolean
 }
