@@ -124,6 +124,21 @@ ipcMain.handle('workspaces:update', (_e, id: string, data: any) => {
 
 ipcMain.handle('workspaces:delete', (_e, id: string) => store.deleteWorkspace(id))
 
+// ── IPC: Folders ──────────────────────────────────────────────
+
+ipcMain.handle('folders:list', () => store.getFolders())
+ipcMain.handle('folders:list-by-workspace', (_e, workspaceId: string) => store.getFoldersByWorkspace(workspaceId))
+
+ipcMain.handle('folders:create', (_e, data: { name: string; workspaceId: string; icon: string; parentId?: string }) => {
+  return store.createFolder(data)
+})
+
+ipcMain.handle('folders:update', (_e, id: string, data: any) => {
+  return store.updateFolder(id, data)
+})
+
+ipcMain.handle('folders:delete', (_e, id: string) => store.deleteFolder(id))
+
 // ── IPC: Tags ─────────────────────────────────────────────────
 
 ipcMain.handle('tags:list', () => store.getTags())
@@ -142,6 +157,20 @@ ipcMain.handle('tags:delete', (_e, id: string) => store.deleteTag(id))
 
 ipcMain.handle('settings:get', () => store.getSettings())
 ipcMain.handle('settings:update', (_e, data: any) => store.updateSettings(data))
+
+// ── IPC: SSH Keys ─────────────────────────────────────────────
+
+ipcMain.handle('ssh-keys:list', () => store.getSSHKeys())
+
+ipcMain.handle('ssh-keys:create', (_e, data: { name: string; path: string; passphrase?: string }) => {
+  return store.createSSHKey(data)
+})
+
+ipcMain.handle('ssh-keys:update', (_e, id: string, data: any) => {
+  return store.updateSSHKey(id, data)
+})
+
+ipcMain.handle('ssh-keys:delete', (_e, id: string) => store.deleteSSHKey(id))
 
 // ── IPC: File Dialog ──────────────────────────────────────────
 

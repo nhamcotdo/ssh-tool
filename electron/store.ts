@@ -5,7 +5,7 @@
 import Store from 'electron-store'
 import { v4 as uuidv4 } from 'uuid'
 import type {
-  StoreSchema, SSHConnection, Workspace, Tag, AppSettings,
+  StoreSchema, SSHConnection, Workspace, Folder, Tag, SSHKey, AppSettings,
   DEFAULT_SETTINGS, DEFAULT_WORKSPACE,
 } from './types'
 
@@ -22,7 +22,9 @@ const store = new Store<StoreSchema>({
         createdAt: Date.now(),
       },
     ],
+    folders: [],
     tags: [],
+    sshKeys: [],
     settings: {
       terminalFontSize: 14,
       terminalFontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -125,6 +127,60 @@ export function deleteWorkspace(id: string): boolean {
   return true
 }
 
+// ── Folders ──────────────────────────────────────────────────
+
+export function getFolders(): Folder[] {
+  return store.get('folders').sort((a, b) => a.order - b.order)
+}
+
+export function getFoldersByWorkspace(workspaceId: string): Folder[] {
+  return getFolders().filter(f => f.workspaceId === workspaceId)
+}
+
+export function createFolder(data: Pick<Folder, 'name' | 'workspaceId' | 'icon'> & { parentId?: string }): Folder {
+  const folders = store.get('folders')
+  const folder: Folder = {
+    ...data,
+    id: uuidv4(),
+    parentId: data.parentId || undefined,
+    order: folders.filter(f => f.workspaceId === data.workspaceId).length,
+    createdAt: Date.now(),
+  }
+  folders.push(folder)
+  store.set('folders', folders)
+  return folder
+}
+
+export function updateFolder(id: string, data: Partial<Folder>): Folder | null {
+  const folders = store.get('folders')
+  const idx = folders.findIndex(f => f.id === id)
+  if (idx === -1) return null
+  folders[idx] = { ...folders[idx], ...data }
+  store.set('folders', folders)
+  return folders[idx]
+}
+
+export function deleteFolder(id: string): boolean {
+  const folders = store.get('folders')
+  // Collect all descendant folder IDs (recursive)
+  const toDelete = new Set<string>()
+  function collectChildren(parentId: string) {
+    toDelete.add(parentId)
+    folders.filter(f => f.parentId === parentId).forEach(f => collectChildren(f.id))
+  }
+  collectChildren(id)
+  store.set('folders', folders.filter(f => !toDelete.has(f.id)))
+  // Move orphaned connections back to workspace root (no folder)
+  const connections = store.get('connections')
+  connections.forEach(c => {
+    if (c.folderId && toDelete.has(c.folderId)) {
+      c.folderId = undefined
+    }
+  })
+  store.set('connections', connections)
+  return true
+}
+
 // ── Tags ────────────────────────────────────────────────────
 
 export function getTags(): Tag[] {
@@ -170,4 +226,39 @@ export function updateSettings(data: Partial<AppSettings>): AppSettings {
   const settings = { ...store.get('settings'), ...data }
   store.set('settings', settings)
   return settings
+}
+
+// ── SSH Keys ────────────────────────────────────────────────
+
+export function getSSHKeys(): SSHKey[] {
+  return store.get('sshKeys') || []
+}
+
+export function createSSHKey(data: Pick<SSHKey, 'name' | 'path' | 'passphrase'>): SSHKey {
+  const key: SSHKey = {
+    ...data,
+    id: uuidv4(),
+    createdAt: Date.now(),
+  }
+  const keys = getSSHKeys()
+  keys.push(key)
+  store.set('sshKeys', keys)
+  return key
+}
+
+export function updateSSHKey(id: string, data: Partial<SSHKey>): SSHKey | null {
+  const keys = getSSHKeys()
+  const idx = keys.findIndex(k => k.id === id)
+  if (idx === -1) return null
+  keys[idx] = { ...keys[idx], ...data }
+  store.set('sshKeys', keys)
+  return keys[idx]
+}
+
+export function deleteSSHKey(id: string): boolean {
+  const keys = getSSHKeys()
+  const filtered = keys.filter(k => k.id !== id)
+  if (filtered.length === keys.length) return false
+  store.set('sshKeys', filtered)
+  return true
 }

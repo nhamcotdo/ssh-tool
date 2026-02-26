@@ -38,6 +38,13 @@ const api = {
   updateWorkspace: (id: string, data: any) => ipcRenderer.invoke('workspaces:update', id, data),
   deleteWorkspace: (id: string) => ipcRenderer.invoke('workspaces:delete', id),
 
+  // ── Folders ────────────────────────────────────────────────
+  listFolders: () => ipcRenderer.invoke('folders:list'),
+  listFoldersByWorkspace: (workspaceId: string) => ipcRenderer.invoke('folders:list-by-workspace', workspaceId),
+  createFolder: (data: any) => ipcRenderer.invoke('folders:create', data),
+  updateFolder: (id: string, data: any) => ipcRenderer.invoke('folders:update', id, data),
+  deleteFolder: (id: string) => ipcRenderer.invoke('folders:delete', id),
+
   // ── Tags ────────────────────────────────────────────────────
   listTags: () => ipcRenderer.invoke('tags:list'),
   createTag: (data: any) => ipcRenderer.invoke('tags:create', data),
@@ -47,6 +54,12 @@ const api = {
   // ── Settings ────────────────────────────────────────────────
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (data: any) => ipcRenderer.invoke('settings:update', data),
+
+  // ── SSH Keys ────────────────────────────────────────────────
+  listSSHKeys: () => ipcRenderer.invoke('ssh-keys:list'),
+  createSSHKey: (data: any) => ipcRenderer.invoke('ssh-keys:create', data),
+  updateSSHKey: (id: string, data: any) => ipcRenderer.invoke('ssh-keys:update', id, data),
+  deleteSSHKey: (id: string) => ipcRenderer.invoke('ssh-keys:delete', id),
 
   // ── File Dialog ─────────────────────────────────────────────
   selectFile: (options?: any) => ipcRenderer.invoke('dialog:select-file', options),

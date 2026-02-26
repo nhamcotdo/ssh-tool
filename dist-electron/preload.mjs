@@ -30,6 +30,12 @@ const api = {
   createWorkspace: (data) => electron.ipcRenderer.invoke("workspaces:create", data),
   updateWorkspace: (id, data) => electron.ipcRenderer.invoke("workspaces:update", id, data),
   deleteWorkspace: (id) => electron.ipcRenderer.invoke("workspaces:delete", id),
+  // ── Folders ────────────────────────────────────────────────
+  listFolders: () => electron.ipcRenderer.invoke("folders:list"),
+  listFoldersByWorkspace: (workspaceId) => electron.ipcRenderer.invoke("folders:list-by-workspace", workspaceId),
+  createFolder: (data) => electron.ipcRenderer.invoke("folders:create", data),
+  updateFolder: (id, data) => electron.ipcRenderer.invoke("folders:update", id, data),
+  deleteFolder: (id) => electron.ipcRenderer.invoke("folders:delete", id),
   // ── Tags ────────────────────────────────────────────────────
   listTags: () => electron.ipcRenderer.invoke("tags:list"),
   createTag: (data) => electron.ipcRenderer.invoke("tags:create", data),
@@ -38,6 +44,11 @@ const api = {
   // ── Settings ────────────────────────────────────────────────
   getSettings: () => electron.ipcRenderer.invoke("settings:get"),
   updateSettings: (data) => electron.ipcRenderer.invoke("settings:update", data),
+  // ── SSH Keys ────────────────────────────────────────────────
+  listSSHKeys: () => electron.ipcRenderer.invoke("ssh-keys:list"),
+  createSSHKey: (data) => electron.ipcRenderer.invoke("ssh-keys:create", data),
+  updateSSHKey: (id, data) => electron.ipcRenderer.invoke("ssh-keys:update", id, data),
+  deleteSSHKey: (id) => electron.ipcRenderer.invoke("ssh-keys:delete", id),
   // ── File Dialog ─────────────────────────────────────────────
   selectFile: (options) => electron.ipcRenderer.invoke("dialog:select-file", options)
 };

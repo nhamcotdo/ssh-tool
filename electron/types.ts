@@ -24,11 +24,22 @@ export interface SSHConnection {
   passphrase?: string
   proxyJump?: ProxyJumpConfig
   workspaceId: string
+  folderId?: string        // optional folder within workspace
   tags: string[]
   notes?: string
   lastConnected?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface Folder {
+  id: string
+  name: string
+  workspaceId: string
+  parentId?: string        // null = root-level folder in workspace
+  icon: string
+  order: number
+  createdAt: number
 }
 
 export interface Workspace {
@@ -46,6 +57,14 @@ export interface Tag {
   color: string
 }
 
+export interface SSHKey {
+  id: string
+  name: string
+  path: string
+  passphrase?: string
+  createdAt: number
+}
+
 export interface AppSettings {
   terminalFontSize: number
   terminalFontFamily: string
@@ -56,7 +75,9 @@ export interface AppSettings {
 export interface StoreSchema {
   connections: SSHConnection[]
   workspaces: Workspace[]
+  folders: Folder[]
   tags: Tag[]
+  sshKeys: SSHKey[]
   settings: AppSettings
 }
 

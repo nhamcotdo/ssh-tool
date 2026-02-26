@@ -53,7 +53,9 @@ const store = new Store({
         createdAt: Date.now()
       }
     ],
+    folders: [],
     tags: [],
+    sshKeys: [],
     settings: {
       terminalFontSize: 14,
       terminalFontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -139,6 +141,51 @@ function deleteWorkspace(id) {
   store.set("connections", connections);
   return true;
 }
+function getFolders() {
+  return store.get("folders").sort((a, b) => a.order - b.order);
+}
+function getFoldersByWorkspace(workspaceId) {
+  return getFolders().filter((f) => f.workspaceId === workspaceId);
+}
+function createFolder(data) {
+  const folders = store.get("folders");
+  const folder = {
+    ...data,
+    id: v4(),
+    parentId: data.parentId || void 0,
+    order: folders.filter((f) => f.workspaceId === data.workspaceId).length,
+    createdAt: Date.now()
+  };
+  folders.push(folder);
+  store.set("folders", folders);
+  return folder;
+}
+function updateFolder(id, data) {
+  const folders = store.get("folders");
+  const idx = folders.findIndex((f) => f.id === id);
+  if (idx === -1) return null;
+  folders[idx] = { ...folders[idx], ...data };
+  store.set("folders", folders);
+  return folders[idx];
+}
+function deleteFolder(id) {
+  const folders = store.get("folders");
+  const toDelete = /* @__PURE__ */ new Set();
+  function collectChildren(parentId) {
+    toDelete.add(parentId);
+    folders.filter((f) => f.parentId === parentId).forEach((f) => collectChildren(f.id));
+  }
+  collectChildren(id);
+  store.set("folders", folders.filter((f) => !toDelete.has(f.id)));
+  const connections = store.get("connections");
+  connections.forEach((c) => {
+    if (c.folderId && toDelete.has(c.folderId)) {
+      c.folderId = void 0;
+    }
+  });
+  store.set("connections", connections);
+  return true;
+}
 function getTags() {
   return store.get("tags");
 }
@@ -174,6 +221,35 @@ function updateSettings(data) {
   const settings = { ...store.get("settings"), ...data };
   store.set("settings", settings);
   return settings;
+}
+function getSSHKeys() {
+  return store.get("sshKeys") || [];
+}
+function createSSHKey(data) {
+  const key = {
+    ...data,
+    id: v4(),
+    createdAt: Date.now()
+  };
+  const keys = getSSHKeys();
+  keys.push(key);
+  store.set("sshKeys", keys);
+  return key;
+}
+function updateSSHKey(id, data) {
+  const keys = getSSHKeys();
+  const idx = keys.findIndex((k) => k.id === id);
+  if (idx === -1) return null;
+  keys[idx] = { ...keys[idx], ...data };
+  store.set("sshKeys", keys);
+  return keys[idx];
+}
+function deleteSSHKey(id) {
+  const keys = getSSHKeys();
+  const filtered = keys.filter((k) => k.id !== id);
+  if (filtered.length === keys.length) return false;
+  store.set("sshKeys", filtered);
+  return true;
 }
 const activeSessions = /* @__PURE__ */ new Map();
 function buildConfig(conn) {
@@ -437,6 +513,15 @@ ipcMain.handle("workspaces:update", (_e, id, data) => {
   return updateWorkspace(id, data);
 });
 ipcMain.handle("workspaces:delete", (_e, id) => deleteWorkspace(id));
+ipcMain.handle("folders:list", () => getFolders());
+ipcMain.handle("folders:list-by-workspace", (_e, workspaceId) => getFoldersByWorkspace(workspaceId));
+ipcMain.handle("folders:create", (_e, data) => {
+  return createFolder(data);
+});
+ipcMain.handle("folders:update", (_e, id, data) => {
+  return updateFolder(id, data);
+});
+ipcMain.handle("folders:delete", (_e, id) => deleteFolder(id));
 ipcMain.handle("tags:list", () => getTags());
 ipcMain.handle("tags:create", (_e, data) => {
   return createTag(data);
@@ -447,6 +532,14 @@ ipcMain.handle("tags:update", (_e, id, data) => {
 ipcMain.handle("tags:delete", (_e, id) => deleteTag(id));
 ipcMain.handle("settings:get", () => getSettings());
 ipcMain.handle("settings:update", (_e, data) => updateSettings(data));
+ipcMain.handle("ssh-keys:list", () => getSSHKeys());
+ipcMain.handle("ssh-keys:create", (_e, data) => {
+  return createSSHKey(data);
+});
+ipcMain.handle("ssh-keys:update", (_e, id, data) => {
+  return updateSSHKey(id, data);
+});
+ipcMain.handle("ssh-keys:delete", (_e, id) => deleteSSHKey(id));
 ipcMain.handle("dialog:select-file", async (_e, options) => {
   const result = await dialog.showOpenDialog(win, {
     properties: ["openFile"],

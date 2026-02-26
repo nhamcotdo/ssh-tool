@@ -1,35 +1,451 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/electron-vite.animate.svg'
-import './App.css'
+// ============================================================
+// App — Root Component
+// ============================================================
 
-function App() {
-  const [count, setCount] = useState(0)
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Search, ServerCrash } from 'lucide-react'
+import type { SSHConnection, SSHKey, Workspace, Folder, Tag, AppSettings, TerminalTab } from './types'
+import Sidebar from './components/Sidebar'
+import ConnectionCard from './components/ConnectionCard'
+import ConnectionForm from './components/ConnectionForm'
+import TerminalPanel from './components/TerminalPanel'
+import { WorkspaceModal, TagModal, SettingsPanel } from './components/Modals'
+import InputDialog from './components/InputDialog'
+import SSHKeyManager from './components/SSHKeyManager'
+
+type View = 'connections' | 'settings' | 'ssh-keys'
+
+export default function App() {
+  // ── Data state ──
+  const [connections, setConnections] = useState<SSHConnection[]>([])
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+  const [sshKeys, setSSHKeys] = useState<SSHKey[]>([])
+  const [settings, setSettings] = useState<AppSettings>({
+    terminalFontSize: 14,
+    terminalFontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    defaultPort: 22,
+    defaultUsername: 'root',
+  })
+
+  // ── UI state ──
+  const [view, setView] = useState<View>('connections')
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState('default')
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
+  const [activeTagId, setActiveTagId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // ── Modals ──
+  const [showConnectionForm, setShowConnectionForm] = useState(false)
+  const [editingConnection, setEditingConnection] = useState<SSHConnection | null>(null)
+  const [newConnectionDefaults, setNewConnectionDefaults] = useState<{ workspaceId?: string; folderId?: string }>({})
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false)
+  const [showTagModal, setShowTagModal] = useState(false)
+  const [inputDialog, setInputDialog] = useState<{
+    title: string; placeholder?: string; defaultValue?: string;
+    onSubmit: (value: string) => void;
+  } | null>(null)
+
+  // ── Terminal tabs (multi-tab SSH) ──
+  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([])
+  const [activeTerminalTab, setActiveTerminalTab] = useState<string | null>(null)
+
+  // ── Load data ──
+  const loadData = useCallback(async () => {
+    const [conns, wss, flds, tgs, keys, sett] = await Promise.all([
+      window.sshTool.listConnections(),
+      window.sshTool.listWorkspaces(),
+      window.sshTool.listFolders(),
+      window.sshTool.listTags(),
+      window.sshTool.listSSHKeys(),
+      window.sshTool.getSettings(),
+    ])
+    setConnections(conns)
+    setWorkspaces(wss)
+    setFolders(flds)
+    setTags(tgs)
+    setSSHKeys(keys)
+    setSettings(sett)
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // ── Connection CRUD ──
+  async function handleCreateConnection(data: any) {
+    // Auto-assign folderId if a folder is active
+    if (activeFolderId && !data.folderId) {
+      data.folderId = activeFolderId
+    }
+    await window.sshTool.createConnection(data)
+    setShowConnectionForm(false)
+    loadData()
+  }
+
+  async function handleUpdateConnection(data: any) {
+    if (!editingConnection) return
+    await window.sshTool.updateConnection(editingConnection.id, data)
+    setShowConnectionForm(false)
+    setEditingConnection(null)
+    loadData()
+  }
+
+  async function handleDeleteConnection(id: string) {
+    if (!confirm('Delete this connection?')) return
+    await window.sshTool.deleteConnection(id)
+    loadData()
+  }
+
+  async function handleDuplicateConnection(id: string) {
+    await window.sshTool.duplicateConnection(id)
+    loadData()
+  }
+
+  // ── New Connection from Sidebar context menu ──
+  function handleNewConnection(workspaceId: string, folderId?: string) {
+    setEditingConnection(null)
+    setNewConnectionDefaults({ workspaceId, folderId })
+    setShowConnectionForm(true)
+  }
+
+  async function handleTestConnection(data: any) {
+    return await window.sshTool.sshTest(data)
+  }
+
+  // ── SSH Connect (multi-tab) ──
+  async function handleConnect(connectionId: string) {
+    const conn = connections.find(c => c.id === connectionId)
+    if (!conn) return
+
+    const result = await window.sshTool.sshConnect(connectionId)
+
+    if (result.success) {
+      const newTab: TerminalTab = {
+        id: result.sessionId,
+        connectionId,
+        sessionId: result.sessionId,
+        name: conn.name,
+        connected: true,
+      }
+      setTerminalTabs(prev => [...prev, newTab])
+      setActiveTerminalTab(result.sessionId)
+      loadData()
+    } else {
+      alert(`Connection failed: ${result.message}`)
+    }
+  }
+
+  function handleCloseTab(tabId: string) {
+    const tab = terminalTabs.find(t => t.id === tabId)
+    if (tab) {
+      window.sshTool.sshDisconnect(tab.sessionId)
+    }
+    setTerminalTabs(prev => prev.filter(t => t.id !== tabId))
+    setActiveTerminalTab(prev => {
+      if (prev === tabId) {
+        const remaining = terminalTabs.filter(t => t.id !== tabId)
+        return remaining.length > 0 ? remaining[remaining.length - 1].id : null
+      }
+      return prev
+    })
+  }
+
+  // ── Workspace CRUD ──
+  async function handleCreateWorkspace(data: { name: string; icon: string; color: string }) {
+    await window.sshTool.createWorkspace(data)
+    setShowWorkspaceModal(false)
+    loadData()
+  }
+
+  async function handleDeleteWorkspace(id: string) {
+    await window.sshTool.deleteWorkspace(id)
+    setShowWorkspaceModal(false)
+    setActiveWorkspaceId('default')
+    loadData()
+  }
+
+  // ── Folder CRUD ──
+  function handleCreateFolder(workspaceId: string, parentId?: string) {
+    setInputDialog({
+      title: 'New Folder',
+      placeholder: 'Folder name',
+      onSubmit: async (name) => {
+        setInputDialog(null)
+        await window.sshTool.createFolder({ name, workspaceId, icon: '📁', parentId })
+        loadData()
+      },
+    })
+  }
+
+  async function handleDeleteFolder(id: string) {
+    await window.sshTool.deleteFolder(id)
+    if (activeFolderId === id) setActiveFolderId(null)
+    loadData()
+  }
+
+  function handleRenameFolder(id: string) {
+    const folder = folders.find(f => f.id === id)
+    if (!folder) return
+    setInputDialog({
+      title: 'Rename Folder',
+      placeholder: 'Folder name',
+      defaultValue: folder.name,
+      onSubmit: async (newName) => {
+        setInputDialog(null)
+        await window.sshTool.updateFolder(id, { name: newName })
+        loadData()
+      },
+    })
+  }
+
+  async function handleMoveFolder(folderId: string, newParentId: string | null, newWorkspaceId?: string) {
+    const update: any = { parentId: newParentId || undefined }
+    if (newWorkspaceId) {
+      update.workspaceId = newWorkspaceId
+      update.parentId = undefined // moving to workspace root
+    }
+    await window.sshTool.updateFolder(folderId, update)
+    loadData()
+  }
+
+  // ── Tag CRUD ──
+  async function handleCreateTag(data: { name: string; color: string }) {
+    await window.sshTool.createTag(data)
+    setShowTagModal(false)
+    loadData()
+  }
+
+  async function handleDeleteTag(id: string) {
+    await window.sshTool.deleteTag(id)
+    setShowTagModal(false)
+    setActiveTagId(null)
+    loadData()
+  }
+
+  // ── Settings ──
+  async function handleUpdateSettings(data: Partial<AppSettings>) {
+    const updated = await window.sshTool.updateSettings(data)
+    setSettings(updated)
+  }
+
+  // ── SSH Key CRUD ──
+  async function handleCreateSSHKey(data: { name: string; path: string; passphrase?: string }) {
+    await window.sshTool.createSSHKey(data)
+    loadData()
+  }
+
+  async function handleUpdateSSHKey(id: string, data: any) {
+    await window.sshTool.updateSSHKey(id, data)
+    loadData()
+  }
+
+  async function handleDeleteSSHKey(id: string) {
+    await window.sshTool.deleteSSHKey(id)
+    loadData()
+  }
+
+  // ── Filter connections ──
+  // Helper: collect a folder and all its descendant IDs
+  function getDescendantFolderIds(folderId: string): string[] {
+    const ids = [folderId]
+    folders.filter(f => f.parentId === folderId).forEach(child => {
+      ids.push(...getDescendantFolderIds(child.id))
+    })
+    return ids
+  }
+
+  const filteredConnections = connections.filter(c => {
+    // Workspace filter
+    if (activeWorkspaceId !== 'default' && c.workspaceId !== activeWorkspaceId) return false
+    // Folder filter (include subfolders)
+    if (activeFolderId) {
+      const validFolderIds = getDescendantFolderIds(activeFolderId)
+      if (!c.folderId || !validFolderIds.includes(c.folderId)) return false
+    }
+    // Tag filter
+    if (activeTagId && !c.tags.includes(activeTagId)) return false
+    // Search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.host.toLowerCase().includes(q) ||
+        c.username.toLowerCase().includes(q) ||
+        c.notes?.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
 
   return (
-    <>
-      <div>
-        <a href="https://electron-vite.github.io" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div style={{ display: 'flex', height: '100vh' }}>
+      {/* Sidebar */}
+      <Sidebar
+        workspaces={workspaces}
+        folders={folders}
+        tags={tags}
+        connections={connections}
+        activeWorkspaceId={activeWorkspaceId}
+        activeFolderId={activeFolderId}
+        activeTagId={activeTagId}
+        onSelectWorkspace={(id) => { setActiveWorkspaceId(id); setActiveFolderId(null); setView('connections') }}
+        onSelectFolder={setActiveFolderId}
+        onSelectTag={setActiveTagId}
+        onCreateWorkspace={() => setShowWorkspaceModal(true)}
+        onCreateFolder={handleCreateFolder}
+        onRenameFolder={handleRenameFolder}
+        onDeleteFolder={handleDeleteFolder}
+        onMoveFolder={handleMoveFolder}
+        onNewConnection={handleNewConnection}
+        onCreateTag={() => setShowTagModal(true)}
+        onOpenSSHKeys={() => setView('ssh-keys')}
+        onOpenSettings={() => setView('settings')}
+        activeSessionCount={terminalTabs.filter(t => t.connected).length}
+      />
+
+      {/* Main Area */}
+      <div className="main-content">
+        {view === 'settings' ? (
+          <SettingsPanel
+            settings={settings}
+            onUpdate={handleUpdateSettings}
+            onClose={() => setView('connections')}
+          />
+        ) : view === 'ssh-keys' ? (
+          <SSHKeyManager
+            sshKeys={sshKeys}
+            onCreateKey={handleCreateSSHKey}
+            onUpdateKey={handleUpdateSSHKey}
+            onDeleteKey={handleDeleteSSHKey}
+            onClose={() => setView('connections')}
+          />
+        ) : (
+          <>
+            {/* Header */}
+            <div className="main-header titlebar-drag">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }} className="titlebar-no-drag">
+                <div style={{ position: 'relative' }}>
+                  <Search
+                    size={16}
+                    style={{
+                      position: 'absolute', left: 10, top: '50%',
+                      transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                    }}
+                  />
+                  <input
+                    className="search-input"
+                    placeholder="Search connections..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              <button
+                className="btn btn-primary titlebar-no-drag"
+                onClick={() => { setEditingConnection(null); setNewConnectionDefaults({}); setShowConnectionForm(true) }}
+              >
+                <Plus size={16} /> New Connection
+              </button>
+            </div>
+
+            {/* Connection grid + Terminal split */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Connection list area */}
+              <div style={{
+                flex: terminalTabs.length > 0 ? '0 0 auto' : 1,
+                maxHeight: terminalTabs.length > 0 ? '40%' : 'none',
+                overflowY: 'auto',
+              }}>
+                {filteredConnections.length > 0 ? (
+                  <div className="connections-grid">
+                    {filteredConnections.map(c => (
+                      <ConnectionCard
+                        key={c.id}
+                        connection={c}
+                        tags={tags}
+                        onConnect={handleConnect}
+                        onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
+                        onDuplicate={handleDuplicateConnection}
+                        onDelete={handleDeleteConnection}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <ServerCrash size={48} style={{ opacity: 0.2 }} />
+                    <div className="empty-text">
+                      {connections.length === 0
+                        ? 'No connections yet. Click "New Connection" to get started.'
+                        : 'No connections match your filters.'
+                      }
+                    </div>
+                    {connections.length === 0 && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => { setEditingConnection(null); setNewConnectionDefaults({}); setShowConnectionForm(true) }}
+                      >
+                        <Plus size={16} /> New Connection
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Terminal panel */}
+              <TerminalPanel
+                tabs={terminalTabs}
+                activeTabId={activeTerminalTab}
+                onSelectTab={setActiveTerminalTab}
+                onCloseTab={handleCloseTab}
+                settings={settings}
+              />
+            </div>
+          </>
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+
+      {/* ── Modals ── */}
+      {showConnectionForm && (
+        <ConnectionForm
+          connection={editingConnection}
+          connections={connections}
+          workspaces={workspaces}
+          folders={folders}
+          tags={tags}
+          sshKeys={sshKeys}
+          initialWorkspaceId={newConnectionDefaults.workspaceId}
+          initialFolderId={newConnectionDefaults.folderId}
+          onSave={editingConnection ? handleUpdateConnection : handleCreateConnection}
+          onCancel={() => { setShowConnectionForm(false); setEditingConnection(null); setNewConnectionDefaults({}) }}
+          onTest={handleTestConnection}
+        />
+      )}
+
+      {showWorkspaceModal && (
+        <WorkspaceModal
+          onSave={handleCreateWorkspace}
+          onDelete={handleDeleteWorkspace}
+          onCancel={() => setShowWorkspaceModal(false)}
+        />
+      )}
+
+      {showTagModal && (
+        <TagModal
+          onSave={handleCreateTag}
+          onDelete={handleDeleteTag}
+          onCancel={() => setShowTagModal(false)}
+        />
+      )}
+
+      {inputDialog && (
+        <InputDialog
+          title={inputDialog.title}
+          placeholder={inputDialog.placeholder}
+          defaultValue={inputDialog.defaultValue}
+          onSubmit={inputDialog.onSubmit}
+          onCancel={() => setInputDialog(null)}
+        />
+      )}
+    </div>
   )
 }
-
-export default App

@@ -29,11 +29,22 @@ export interface SSHConnection {
   passphrase?: string
   proxyJump?: ProxyJumpConfig
   workspaceId: string
+  folderId?: string
   tags: string[]
   notes?: string
   lastConnected?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface Folder {
+  id: string
+  name: string
+  workspaceId: string
+  parentId?: string
+  icon: string
+  order: number
+  createdAt: number
 }
 
 export interface Workspace {
@@ -49,6 +60,14 @@ export interface Tag {
   id: string
   name: string
   color: string
+}
+
+export interface SSHKey {
+  id: string
+  name: string
+  path: string
+  passphrase?: string
+  createdAt: number
 }
 
 export interface AppSettings {
