@@ -1,24 +1,57 @@
+// ============================================================
+// Preload — Typed IPC Bridge
+// ============================================================
+
 import { ipcRenderer, contextBridge } from 'electron'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+const api = {
+  // ── Connections ──────────────────────────────────────────────
+  listConnections: () => ipcRenderer.invoke('connections:list'),
+  getConnection: (id: string) => ipcRenderer.invoke('connections:get', id),
+  createConnection: (data: any) => ipcRenderer.invoke('connections:create', data),
+  updateConnection: (id: string, data: any) => ipcRenderer.invoke('connections:update', id, data),
+  deleteConnection: (id: string) => ipcRenderer.invoke('connections:delete', id),
+  duplicateConnection: (id: string) => ipcRenderer.invoke('connections:duplicate', id),
+
+  // ── SSH Sessions ────────────────────────────────────────────
+  sshConnect: (connectionId: string) => ipcRenderer.invoke('ssh:connect', connectionId),
+  sshDisconnect: (sessionId: string) => ipcRenderer.invoke('ssh:disconnect', sessionId),
+  sshInput: (sessionId: string, data: string) => ipcRenderer.send('ssh:input', sessionId, data),
+  sshResize: (sessionId: string, cols: number, rows: number) => ipcRenderer.send('ssh:resize', sessionId, cols, rows),
+  sshTest: (connData: any) => ipcRenderer.invoke('ssh:test', connData),
+  sshActiveSessions: () => ipcRenderer.invoke('ssh:active-sessions'),
+
+  onSshData: (callback: (connectionId: string, data: string) => void) => {
+    const handler = (_e: any, connectionId: string, data: string) => callback(connectionId, data)
+    ipcRenderer.on('ssh:data', handler)
+    return () => ipcRenderer.removeListener('ssh:data', handler)
   },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
+  onSshClosed: (callback: (connectionId: string) => void) => {
+    const handler = (_e: any, connectionId: string) => callback(connectionId)
+    ipcRenderer.on('ssh:closed', handler)
+    return () => ipcRenderer.removeListener('ssh:closed', handler)
   },
 
-  // You can expose other APTs you need here.
-  // ...
-})
+  // ── Workspaces ──────────────────────────────────────────────
+  listWorkspaces: () => ipcRenderer.invoke('workspaces:list'),
+  createWorkspace: (data: any) => ipcRenderer.invoke('workspaces:create', data),
+  updateWorkspace: (id: string, data: any) => ipcRenderer.invoke('workspaces:update', id, data),
+  deleteWorkspace: (id: string) => ipcRenderer.invoke('workspaces:delete', id),
+
+  // ── Tags ────────────────────────────────────────────────────
+  listTags: () => ipcRenderer.invoke('tags:list'),
+  createTag: (data: any) => ipcRenderer.invoke('tags:create', data),
+  updateTag: (id: string, data: any) => ipcRenderer.invoke('tags:update', id, data),
+  deleteTag: (id: string) => ipcRenderer.invoke('tags:delete', id),
+
+  // ── Settings ────────────────────────────────────────────────
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  updateSettings: (data: any) => ipcRenderer.invoke('settings:update', data),
+
+  // ── File Dialog ─────────────────────────────────────────────
+  selectFile: (options?: any) => ipcRenderer.invoke('dialog:select-file', options),
+}
+
+contextBridge.exposeInMainWorld('sshTool', api)
+
+export type SshToolAPI = typeof api
