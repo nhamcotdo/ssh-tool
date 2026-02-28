@@ -72,13 +72,18 @@ export interface AppSettings {
   defaultUsername: string
 }
 
-export interface StoreSchema {
+// Per-user data bundle
+export interface UserData {
   connections: SSHConnection[]
   workspaces: Workspace[]
   folders: Folder[]
   tags: Tag[]
   sshKeys: SSHKey[]
   settings: AppSettings
+}
+
+export interface StoreSchema {
+  userData: Record<string, UserData>
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

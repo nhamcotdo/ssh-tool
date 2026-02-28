@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search, ServerCrash } from 'lucide-react'
-import type { SSHConnection, SSHKey, Workspace, Folder, Tag, AppSettings, TerminalTab } from './types'
+import type { SSHConnection, SSHKey, UserAccount, Workspace, Folder, Tag, AppSettings, TerminalTab } from './types'
 import Sidebar from './components/Sidebar'
 import ConnectionCard from './components/ConnectionCard'
 import ConnectionForm from './components/ConnectionForm'
@@ -12,10 +12,16 @@ import TerminalPanel from './components/TerminalPanel'
 import { WorkspaceModal, TagModal, SettingsPanel } from './components/Modals'
 import InputDialog from './components/InputDialog'
 import SSHKeyManager from './components/SSHKeyManager'
+import AuthScreen from './components/AuthScreen'
 
 type View = 'connections' | 'settings' | 'ssh-keys'
 
 export default function App() {
+  // ── Auth state ──
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isLocked, setIsLocked] = useState(false)
+
   // ── Data state ──
   const [connections, setConnections] = useState<SSHConnection[]>([])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -69,7 +75,23 @@ export default function App() {
     setSettings(sett)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    window.sshTool.getCurrentUser().then((user: UserAccount | null) => {
+      setCurrentUser(user)
+      setAuthChecked(true)
+    })
+
+    if (window.sshTool.onLockScreen) {
+      const cleanup = window.sshTool.onLockScreen(() => {
+        setIsLocked(true)
+      })
+      return () => { cleanup() }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentUser) loadData()
+  }, [currentUser, loadData])
 
   // ── Connection CRUD ──
   async function handleCreateConnection(data: any) {
@@ -264,7 +286,58 @@ export default function App() {
     loadData()
   }
 
-  // ── Filter connections ──
+  // ── Auth ──
+  async function handleLogout() {
+    await window.sshTool.logout()
+    terminalTabs.forEach(t => {
+      window.sshTool.sshDisconnect(t.sessionId)
+    })
+    setCurrentUser(null)
+    setConnections([])
+    setWorkspaces([])
+    setFolders([])
+    setTags([])
+    setSSHKeys([])
+    setTerminalTabs([])
+    setView('connections')
+  }
+
+  // ── Auth logic ──
+  function handleAuthSuccess(user: UserAccount) {
+    if (currentUser && currentUser.id === user.id) {
+      // Unlocked by same user - resume state perfectly perfectly perfectly perfectly perfectly
+      setIsLocked(false)
+    } else {
+      // New user logged in - wipe older state
+      terminalTabs.forEach(t => {
+        window.sshTool.sshDisconnect(t.sessionId)
+      })
+      setCurrentUser(user)
+      setIsLocked(false)
+      setConnections([])
+      setWorkspaces([])
+      setFolders([])
+      setTags([])
+      setSSHKeys([])
+      setTerminalTabs([])
+      setView('connections')
+    }
+  }
+
+  // ── Auth gate ──
+  if (!authChecked) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div className="titlebar-drag" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 40 }} />
+        <span className="spin" style={{ fontSize: 24 }}>⏳</span>
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onAuth={handleAuthSuccess} />
+  }
+
   // Helper: collect a folder and all its descendant IDs
   function getDescendantFolderIds(folderId: string): string[] {
     const ids = [folderId]
@@ -299,6 +372,12 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
+      {isLocked && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
+          <AuthScreen onAuth={handleAuthSuccess} />
+        </div>
+      )}
+
       {/* Sidebar */}
       <Sidebar
         workspaces={workspaces}
@@ -320,6 +399,8 @@ export default function App() {
         onCreateTag={() => setShowTagModal(true)}
         onOpenSSHKeys={() => setView('ssh-keys')}
         onOpenSettings={() => setView('settings')}
+        onLogout={handleLogout}
+        currentUsername={currentUser.username}
         activeSessionCount={terminalTabs.filter(t => t.connected).length}
       />
 

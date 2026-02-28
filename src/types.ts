@@ -7,6 +7,11 @@ declare global {
 }
 
 // Re-export types for renderer usage
+export interface UserAccount {
+  id: string
+  username: string
+}
+
 export interface ProxyJumpConfig {
   enabled: boolean
   host: string

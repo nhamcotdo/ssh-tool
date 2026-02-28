@@ -3,7 +3,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "YourAppID",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "SSHTool",
   "directories": {
     "output": "release/${version}"
   },
@@ -15,6 +15,7 @@
     "target": [
       "dmg"
     ],
+    "icon": "build/icon.png",
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
   },
   "win": {
@@ -26,6 +27,7 @@
         ]
       }
     ],
+    "icon": "build/icon.png",
     "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
   },
   "nsis": {

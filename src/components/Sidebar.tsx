@@ -6,7 +6,7 @@ import { useState } from 'react'
 import {
     Plus, Settings, Monitor, Tag, ChevronRight, ChevronDown,
     FolderPlus, FolderOpen, Folder as FolderIcon,
-    Trash2, Pencil, FolderInput, Key,
+    Trash2, Pencil, FolderInput, Key, LogOut,
 } from 'lucide-react'
 import type { Workspace, Folder, Tag as TagType, SSHConnection } from '../types'
 import ContextMenu, { type ContextMenuItem } from './ContextMenu'
@@ -31,6 +31,8 @@ interface SidebarProps {
     onCreateTag: () => void
     onOpenSSHKeys: () => void
     onOpenSettings: () => void
+    onLogout: () => void
+    currentUsername: string
     activeSessionCount: number
 }
 
@@ -45,7 +47,7 @@ export default function Sidebar({
     activeFolderId, activeTagId, onSelectWorkspace, onSelectFolder,
     onSelectTag, onCreateWorkspace, onCreateFolder, onRenameFolder,
     onDeleteFolder, onMoveFolder, onNewConnection, onCreateTag, onOpenSSHKeys, onOpenSettings,
-    activeSessionCount,
+    onLogout, currentUsername, activeSessionCount,
 }: SidebarProps) {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
     const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set(['default']))
@@ -399,6 +401,32 @@ export default function Sidebar({
                 >
                     <Settings size={16} />
                     <span>Settings</span>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '6px 0', padding: '6px 12px 0' }}>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        fontSize: 12, color: 'var(--text-muted)',
+                    }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{
+                                width: 22, height: 22, borderRadius: '50%',
+                                background: 'rgba(59, 130, 246, 0.2)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 10, color: 'var(--accent-blue)', fontWeight: 700,
+                            }}>
+                                {currentUsername[0]?.toUpperCase()}
+                            </div>
+                            <span>{currentUsername}</span>
+                        </span>
+                        <button
+                            className="icon-btn titlebar-no-drag"
+                            onClick={onLogout}
+                            title="Sign Out"
+                            style={{ width: 24, height: 24 }}
+                        >
+                            <LogOut size={13} />
+                        </button>
+                    </div>
                 </div>
             </div>
 

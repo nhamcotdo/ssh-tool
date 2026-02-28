@@ -2,12 +2,13 @@
 // Electron Main Process
 // ============================================================
 
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, powerMonitor } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 import * as store from './store'
+import * as auth from './auth'
 import * as sshManager from './ssh-manager'
 import type { SSHConnection } from './types'
 
@@ -49,34 +50,60 @@ function createWindow() {
   }
 }
 
+// Helper: get current userId or throw
+function requireUserId(): string {
+  const user = auth.getCurrentUser()
+  if (!user) throw new Error('Not authenticated')
+  return user.id
+}
+
+// ── IPC: Auth ─────────────────────────────────────────────────
+
+ipcMain.handle('auth:register', (_e, username: string, password: string) => {
+  return auth.register(username, password)
+})
+
+ipcMain.handle('auth:login', (_e, username: string, password: string) => {
+  return auth.login(username, password)
+})
+
+ipcMain.handle('auth:logout', () => {
+  auth.logout()
+  return { success: true }
+})
+
+ipcMain.handle('auth:current-user', () => {
+  return auth.getCurrentUser()
+})
+
 // ── IPC: Connections ──────────────────────────────────────────
 
-ipcMain.handle('connections:list', () => store.getConnections())
-ipcMain.handle('connections:get', (_e, id: string) => store.getConnectionById(id))
+ipcMain.handle('connections:list', () => store.getConnections(requireUserId()))
+ipcMain.handle('connections:get', (_e, id: string) => store.getConnectionById(requireUserId(), id))
 
 ipcMain.handle('connections:create', (_e, data: Omit<SSHConnection, 'id' | 'createdAt' | 'updatedAt'>) => {
-  return store.createConnection(data)
+  return store.createConnection(requireUserId(), data)
 })
 
 ipcMain.handle('connections:update', (_e, id: string, data: Partial<SSHConnection>) => {
-  return store.updateConnection(id, data)
+  return store.updateConnection(requireUserId(), id, data)
 })
 
-ipcMain.handle('connections:delete', (_e, id: string) => store.deleteConnection(id))
-ipcMain.handle('connections:duplicate', (_e, id: string) => store.duplicateConnection(id))
+ipcMain.handle('connections:delete', (_e, id: string) => store.deleteConnection(requireUserId(), id))
+ipcMain.handle('connections:duplicate', (_e, id: string) => store.duplicateConnection(requireUserId(), id))
 
 // ── IPC: SSH Sessions ─────────────────────────────────────────
 
 ipcMain.handle('ssh:connect', (_e, connectionId: string) => {
-  const conn = store.getConnectionById(connectionId)
+  const userId = requireUserId()
+  const conn = store.getConnectionById(userId, connectionId)
   if (!conn) return { success: false, message: 'Connection not found' }
 
   return new Promise((resolve) => {
     sshManager.connect(
       conn,
       (session) => {
-        store.touchConnection(connectionId)
-        // Forward SSH data to renderer
+        store.touchConnection(userId, connectionId)
         resolve({ success: true, sessionId: session.id })
       },
       (err) => {
@@ -112,65 +139,65 @@ ipcMain.handle('ssh:active-sessions', () => sshManager.getActiveSessions())
 
 // ── IPC: Workspaces ───────────────────────────────────────────
 
-ipcMain.handle('workspaces:list', () => store.getWorkspaces())
+ipcMain.handle('workspaces:list', () => store.getWorkspaces(requireUserId()))
 
 ipcMain.handle('workspaces:create', (_e, data: { name: string; icon: string; color: string }) => {
-  return store.createWorkspace(data)
+  return store.createWorkspace(requireUserId(), data)
 })
 
 ipcMain.handle('workspaces:update', (_e, id: string, data: any) => {
-  return store.updateWorkspace(id, data)
+  return store.updateWorkspace(requireUserId(), id, data)
 })
 
-ipcMain.handle('workspaces:delete', (_e, id: string) => store.deleteWorkspace(id))
+ipcMain.handle('workspaces:delete', (_e, id: string) => store.deleteWorkspace(requireUserId(), id))
 
 // ── IPC: Folders ──────────────────────────────────────────────
 
-ipcMain.handle('folders:list', () => store.getFolders())
-ipcMain.handle('folders:list-by-workspace', (_e, workspaceId: string) => store.getFoldersByWorkspace(workspaceId))
+ipcMain.handle('folders:list', () => store.getFolders(requireUserId()))
+ipcMain.handle('folders:list-by-workspace', (_e, workspaceId: string) => store.getFoldersByWorkspace(requireUserId(), workspaceId))
 
 ipcMain.handle('folders:create', (_e, data: { name: string; workspaceId: string; icon: string; parentId?: string }) => {
-  return store.createFolder(data)
+  return store.createFolder(requireUserId(), data)
 })
 
 ipcMain.handle('folders:update', (_e, id: string, data: any) => {
-  return store.updateFolder(id, data)
+  return store.updateFolder(requireUserId(), id, data)
 })
 
-ipcMain.handle('folders:delete', (_e, id: string) => store.deleteFolder(id))
+ipcMain.handle('folders:delete', (_e, id: string) => store.deleteFolder(requireUserId(), id))
 
 // ── IPC: Tags ─────────────────────────────────────────────────
 
-ipcMain.handle('tags:list', () => store.getTags())
+ipcMain.handle('tags:list', () => store.getTags(requireUserId()))
 
 ipcMain.handle('tags:create', (_e, data: { name: string; color: string }) => {
-  return store.createTag(data)
+  return store.createTag(requireUserId(), data)
 })
 
 ipcMain.handle('tags:update', (_e, id: string, data: any) => {
-  return store.updateTag(id, data)
+  return store.updateTag(requireUserId(), id, data)
 })
 
-ipcMain.handle('tags:delete', (_e, id: string) => store.deleteTag(id))
+ipcMain.handle('tags:delete', (_e, id: string) => store.deleteTag(requireUserId(), id))
 
 // ── IPC: Settings ─────────────────────────────────────────────
 
-ipcMain.handle('settings:get', () => store.getSettings())
-ipcMain.handle('settings:update', (_e, data: any) => store.updateSettings(data))
+ipcMain.handle('settings:get', () => store.getSettings(requireUserId()))
+ipcMain.handle('settings:update', (_e, data: any) => store.updateSettings(requireUserId(), data))
 
 // ── IPC: SSH Keys ─────────────────────────────────────────────
 
-ipcMain.handle('ssh-keys:list', () => store.getSSHKeys())
+ipcMain.handle('ssh-keys:list', () => store.getSSHKeys(requireUserId()))
 
 ipcMain.handle('ssh-keys:create', (_e, data: { name: string; path: string; passphrase?: string }) => {
-  return store.createSSHKey(data)
+  return store.createSSHKey(requireUserId(), data)
 })
 
 ipcMain.handle('ssh-keys:update', (_e, id: string, data: any) => {
-  return store.updateSSHKey(id, data)
+  return store.updateSSHKey(requireUserId(), id, data)
 })
 
-ipcMain.handle('ssh-keys:delete', (_e, id: string) => store.deleteSSHKey(id))
+ipcMain.handle('ssh-keys:delete', (_e, id: string) => store.deleteSSHKey(requireUserId(), id))
 
 // ── IPC: File Dialog ──────────────────────────────────────────
 
@@ -200,4 +227,18 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+
+  function handleScreenLock() {
+    if (auth.getCurrentUser()) {
+      auth.logout()
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('app:lock-screen')
+      }
+    }
+  }
+
+  powerMonitor.on('suspend', handleScreenLock)
+  powerMonitor.on('lock-screen', handleScreenLock)
+})

@@ -5,6 +5,12 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
 const api = {
+  // ── Auth ─────────────────────────────────────────────────────
+  register: (username: string, password: string) => ipcRenderer.invoke('auth:register', username, password),
+  login: (username: string, password: string) => ipcRenderer.invoke('auth:login', username, password),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  getCurrentUser: () => ipcRenderer.invoke('auth:current-user'),
+
   // ── Connections ──────────────────────────────────────────────
   listConnections: () => ipcRenderer.invoke('connections:list'),
   getConnection: (id: string) => ipcRenderer.invoke('connections:get', id),
@@ -63,6 +69,13 @@ const api = {
 
   // ── File Dialog ─────────────────────────────────────────────
   selectFile: (options?: any) => ipcRenderer.invoke('dialog:select-file', options),
+
+  // ── Events ──────────────────────────────────────────────────
+  onLockScreen: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('app:lock-screen', handler)
+    return () => ipcRenderer.removeListener('app:lock-screen', handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('sshTool', api)
