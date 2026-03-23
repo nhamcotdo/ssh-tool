@@ -6,6 +6,8 @@ import { app, BrowserWindow, ipcMain, dialog, powerMonitor } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
 
 import * as store from './store'
 import * as auth from './auth'
@@ -74,6 +76,103 @@ ipcMain.handle('auth:logout', () => {
 
 ipcMain.handle('auth:current-user', () => {
   return auth.getCurrentUser()
+})
+
+// ── Data Encryption ──────────────────────────────────────────
+
+const ALGORITHM = 'aes-256-gcm'
+
+function encryptData(text: string, password?: string): string {
+  if (!password) return JSON.stringify({ encrypted: false, data: text })
+  
+  const salt = crypto.randomBytes(16)
+  const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256')
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+  
+  let encrypted = cipher.update(text, 'utf8', 'base64')
+  encrypted += cipher.final('base64')
+  const authTag = cipher.getAuthTag()
+  
+  return JSON.stringify({
+    encrypted: true,
+    salt: salt.toString('base64'),
+    iv: iv.toString('base64'),
+    authTag: authTag.toString('base64'),
+    data: encrypted
+  })
+}
+
+function decryptData(jsonString: string, password?: string): string {
+  const parsed = JSON.parse(jsonString)
+  if (!parsed.encrypted) return parsed.data
+  
+  if (!password) throw new Error('A password is required to decrypt this backup')
+  
+  const salt = Buffer.from(parsed.salt, 'base64')
+  const iv = Buffer.from(parsed.iv, 'base64')
+  const authTag = Buffer.from(parsed.authTag, 'base64')
+  const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256')
+  
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+  decipher.setAuthTag(authTag)
+  
+  let decrypted = decipher.update(parsed.data, 'base64', 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
+}
+
+// ── IPC: Data Import / Export ────────────────────────────────
+
+ipcMain.handle('data:export', async (_e, password?: string) => {
+  const userId = requireUserId()
+  const data = store.getUserDataRaw(userId)
+  const jsonString = JSON.stringify(data)
+
+  const defaultPath = path.join(app.getPath('documents'), `ssh-tool-backup-${Date.now()}.mmo-backup`)
+  const result = await dialog.showSaveDialog(win!, {
+    title: 'Export Data',
+    defaultPath,
+    filters: [{ name: 'MMO Backup', extensions: ['mmo-backup'] }, { name: 'All Files', extensions: ['*'] }],
+  })
+
+  if (result.canceled || !result.filePath) return { success: false, message: 'Canceled' }
+
+  try {
+    const fileData = encryptData(jsonString, password)
+    await fs.writeFile(result.filePath, fileData, 'utf8')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, message: err.message }
+  }
+})
+
+ipcMain.handle('data:import', async (_e, password?: string) => {
+  const userId = requireUserId()
+
+  const result = await dialog.showOpenDialog(win!, {
+    title: 'Import Data',
+    properties: ['openFile'],
+    filters: [{ name: 'MMO Backup', extensions: ['mmo-backup'] }, { name: 'All Files', extensions: ['*'] }],
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return { success: false, message: 'Canceled' }
+
+  try {
+    const fileData = await fs.readFile(result.filePaths[0], 'utf8')
+    const decryptedData = decryptData(fileData, password)
+    const userData = JSON.parse(decryptedData)
+    
+    if (!userData.settings || !Array.isArray(userData.connections)) {
+      throw new Error('Invalid backup file format')
+    }
+
+    store.setUserDataRaw(userId, userData)
+    
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, message: err.message }
+  }
 })
 
 // ── IPC: Connections ──────────────────────────────────────────

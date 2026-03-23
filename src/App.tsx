@@ -4,6 +4,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search, ServerCrash } from 'lucide-react'
+// @ts-ignore - TS has trouble resolving the exports in this environment
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import type { SSHConnection, SSHKey, UserAccount, Workspace, Folder, Tag, AppSettings, TerminalTab } from './types'
 import Sidebar from './components/Sidebar'
 import ConnectionCard from './components/ConnectionCard'
@@ -92,6 +94,35 @@ export default function App() {
   useEffect(() => {
     if (currentUser) loadData()
   }, [currentUser, loadData])
+
+  // ── Connection Status & Shortcuts ──
+  useEffect(() => {
+    if (!authChecked) return
+
+    const removeCloseListener = window.sshTool.onSshClosed((connId) => {
+      setTerminalTabs(prev => prev.map(t =>
+        t.connectionId === connId && t.connected
+          ? { ...t, connected: false }
+          : t
+      ))
+    })
+
+    return () => { removeCloseListener(); }
+  }, [authChecked])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Cmd+W (macOS) or Ctrl+W (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+        if (activeTerminalTab) {
+          e.preventDefault()
+          handleCloseTab(activeTerminalTab)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTerminalTab, terminalTabs])
 
   // ── Connection CRUD ──
   async function handleCreateConnection(data: any) {
@@ -190,6 +221,33 @@ export default function App() {
       }
       return prev
     })
+  }
+
+  async function handleReconnect(tabId: string) {
+    const tab = terminalTabs.find(t => t.id === tabId)
+    if (!tab) return
+    
+    setTerminalTabs(prev => prev.map(t => t.id === tabId ? { ...t, connecting: true } : t))
+    
+    const result = await window.sshTool.sshConnect(tab.connectionId)
+    if (result.success) {
+      setTerminalTabs(prev => prev.map(t =>
+        t.id === tabId
+          ? { ...t, id: result.sessionId, sessionId: result.sessionId, connected: true, connecting: false }
+          : t
+      ))
+      if (activeTerminalTab === tabId) {
+        setActiveTerminalTab(result.sessionId)
+      }
+      loadData()
+    } else {
+      setTerminalTabs(prev => prev.map(t => t.id === tabId ? { ...t, connecting: false } : t))
+      alert(`Reconnect failed: ${result.message}`)
+    }
+  }
+
+  function handleReorderTabs(newTabs: TerminalTab[]) {
+    setTerminalTabs(newTabs)
   }
 
   // ── Workspace CRUD ──
@@ -371,38 +429,43 @@ export default function App() {
   })
 
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
       {isLocked && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
           <AuthScreen onAuth={handleAuthSuccess} />
         </div>
       )}
 
-      {/* Sidebar */}
-      <Sidebar
-        workspaces={workspaces}
-        folders={folders}
-        tags={tags}
-        connections={connections}
-        activeWorkspaceId={activeWorkspaceId}
-        activeFolderId={activeFolderId}
-        activeTagId={activeTagId}
-        onSelectWorkspace={(id) => { setActiveWorkspaceId(id); setActiveFolderId(null); setView('connections') }}
-        onSelectFolder={setActiveFolderId}
-        onSelectTag={setActiveTagId}
-        onCreateWorkspace={() => setShowWorkspaceModal(true)}
-        onCreateFolder={handleCreateFolder}
-        onRenameFolder={handleRenameFolder}
-        onDeleteFolder={handleDeleteFolder}
-        onMoveFolder={handleMoveFolder}
-        onNewConnection={handleNewConnection}
-        onCreateTag={() => setShowTagModal(true)}
-        onOpenSSHKeys={() => setView('ssh-keys')}
-        onOpenSettings={() => setView('settings')}
-        onLogout={handleLogout}
-        currentUsername={currentUser.username}
-        activeSessionCount={terminalTabs.filter(t => t.connected).length}
-      />
+      <PanelGroup orientation="horizontal">
+        <Panel defaultSize={20} minSize={15} style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Sidebar */}
+          <Sidebar
+            workspaces={workspaces}
+            folders={folders}
+            tags={tags}
+            connections={connections}
+            activeWorkspaceId={activeWorkspaceId}
+            activeFolderId={activeFolderId}
+            activeTagId={activeTagId}
+            onSelectWorkspace={(id) => { setActiveWorkspaceId(id); setActiveFolderId(null); setView('connections') }}
+            onSelectFolder={setActiveFolderId}
+            onSelectTag={setActiveTagId}
+            onCreateWorkspace={() => setShowWorkspaceModal(true)}
+            onCreateFolder={handleCreateFolder}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onMoveFolder={handleMoveFolder}
+            onNewConnection={handleNewConnection}
+            onCreateTag={() => setShowTagModal(true)}
+            onOpenSSHKeys={() => setView('ssh-keys')}
+            onOpenSettings={() => setView('settings')}
+            onLogout={handleLogout}
+            currentUsername={currentUser.username}
+            activeSessionCount={terminalTabs.filter(t => t.connected).length}
+          />
+        </Panel>
+        <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
+        <Panel defaultSize={80} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
       {/* Main Area */}
       <div className="main-content">
@@ -450,60 +513,104 @@ export default function App() {
             </div>
 
             {/* Connection grid + Terminal split */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Connection list area */}
-              <div style={{
-                flex: terminalTabs.length > 0 ? '0 0 auto' : 1,
-                maxHeight: terminalTabs.length > 0 ? '40%' : 'none',
-                overflowY: 'auto',
-              }}>
-                {filteredConnections.length > 0 ? (
-                  <div className="connections-grid">
-                    {filteredConnections.map(c => (
-                      <ConnectionCard
-                        key={c.id}
-                        connection={c}
-                        tags={tags}
-                        onConnect={handleConnect}
-                        onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
-                        onDuplicate={handleDuplicateConnection}
-                        onDelete={handleDeleteConnection}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <ServerCrash size={48} style={{ opacity: 0.2 }} />
-                    <div className="empty-text">
-                      {connections.length === 0
-                        ? 'No connections yet. Click "New Connection" to get started.'
-                        : 'No connections match your filters.'
-                      }
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+              {terminalTabs.length > 0 ? (
+                <PanelGroup orientation="vertical">
+                  <Panel defaultSize={40} minSize={20} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                      {filteredConnections.length > 0 ? (
+                        <div className="connections-grid">
+                          {filteredConnections.map(c => (
+                            <ConnectionCard
+                              key={c.id}
+                              connection={c}
+                              tags={tags}
+                              onConnect={handleConnect}
+                              onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
+                              onDuplicate={handleDuplicateConnection}
+                              onDelete={handleDeleteConnection}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="empty-state">
+                          <ServerCrash size={48} style={{ opacity: 0.2 }} />
+                          <div className="empty-text">
+                            {connections.length === 0
+                              ? 'No connections yet. Click "New Connection" to get started.'
+                              : 'No connections match your filters.'
+                            }
+                          </div>
+                          {connections.length === 0 && (
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => { setEditingConnection(null); setNewConnectionDefaults({}); setShowConnectionForm(true) }}
+                            >
+                              <Plus size={16} /> New Connection
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {connections.length === 0 && (
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => { setEditingConnection(null); setNewConnectionDefaults({}); setShowConnectionForm(true) }}
-                      >
-                        <Plus size={16} /> New Connection
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Terminal panel */}
-              <TerminalPanel
-                tabs={terminalTabs}
-                activeTabId={activeTerminalTab}
-                onSelectTab={setActiveTerminalTab}
-                onCloseTab={handleCloseTab}
-                settings={settings}
-              />
+                  </Panel>
+                  
+                  <PanelResizeHandle className="resize-handle resize-handle-vertical" />
+                  
+                  <Panel defaultSize={60} minSize={20} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <TerminalPanel
+                      tabs={terminalTabs}
+                      activeTabId={activeTerminalTab}
+                      onSelectTab={setActiveTerminalTab}
+                      onCloseTab={handleCloseTab}
+                      onReconnect={handleReconnect}
+                      onReorderTabs={handleReorderTabs}
+                      settings={settings}
+                    />
+                  </Panel>
+                </PanelGroup>
+              ) : (
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {filteredConnections.length > 0 ? (
+                    <div className="connections-grid">
+                      {filteredConnections.map(c => (
+                        <ConnectionCard
+                          key={c.id}
+                          connection={c}
+                          tags={tags}
+                          onConnect={handleConnect}
+                          onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
+                          onDuplicate={handleDuplicateConnection}
+                          onDelete={handleDeleteConnection}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <ServerCrash size={48} style={{ opacity: 0.2 }} />
+                      <div className="empty-text">
+                        {connections.length === 0
+                          ? 'No connections yet. Click "New Connection" to get started.'
+                          : 'No connections match your filters.'
+                        }
+                      </div>
+                      {connections.length === 0 && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => { setEditingConnection(null); setNewConnectionDefaults({}); setShowConnectionForm(true) }}
+                        >
+                          <Plus size={16} /> New Connection
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
       </div>
+      </Panel>
+      </PanelGroup>
 
       {/* ── Modals ── */}
       {showConnectionForm && (

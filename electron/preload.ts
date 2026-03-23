@@ -38,6 +38,10 @@ const api = {
     return () => ipcRenderer.removeListener('ssh:closed', handler)
   },
 
+  // ── Import / Export Data ─────────────────────────────────────
+  exportData: (password?: string) => ipcRenderer.invoke('data:export', password),
+  importData: (password?: string) => ipcRenderer.invoke('data:import', password),
+
   // ── Workspaces ──────────────────────────────────────────────
   listWorkspaces: () => ipcRenderer.invoke('workspaces:list'),
   createWorkspace: (data: any) => ipcRenderer.invoke('workspaces:create', data),

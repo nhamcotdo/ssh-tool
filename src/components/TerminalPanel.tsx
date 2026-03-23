@@ -5,7 +5,24 @@
 import { useEffect, useRef } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
-import { X, Terminal as TerminalIcon, Loader2 } from 'lucide-react'
+import { X, Terminal as TerminalIcon, Loader2, RefreshCw } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { TerminalTab } from '../types'
 import 'xterm/css/xterm.css'
 
@@ -14,15 +31,80 @@ interface TerminalPanelProps {
     activeTabId: string | null
     onSelectTab: (id: string) => void
     onCloseTab: (id: string) => void
+    onReconnect: (id: string) => void
+    onReorderTabs: (tabs: TerminalTab[]) => void
     settings: { terminalFontSize: number; terminalFontFamily: string }
 }
 
+function SortableTab({ tab, activeTabId, onSelectTab, onCloseTab }: any) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id: tab.id })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    }
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className={`terminal-tab ${tab.id === activeTabId ? 'active' : ''}`}
+            onPointerDown={(e) => {
+                // Ignore middle clicks or right clicks to avoid interfering with drag/context
+                if (e.button === 0) {
+                    onSelectTab(tab.id)
+                }
+            }}
+        >
+            <span className={`tab-dot ${tab.connecting ? 'connecting' : tab.connected ? 'connected' : 'disconnected'}`} />
+            <TerminalIcon size={12} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>{tab.name}</span>
+            {tab.connecting && <Loader2 size={12} className="spin" />}
+            <span
+                className="tab-close"
+                onPointerDown={(e) => { e.stopPropagation(); onCloseTab(tab.id) }}
+            >
+                <X size={10} />
+            </span>
+        </div>
+    )
+}
+
 export default function TerminalPanel({
-    tabs, activeTabId, onSelectTab, onCloseTab, settings,
+    tabs, activeTabId, onSelectTab, onCloseTab, onReconnect, onReorderTabs, settings,
 }: TerminalPanelProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const terminalsRef = useRef<Map<string, { term: Terminal; fitAddon: FitAddon }>>(new Map())
     const cleanupRef = useRef<Map<string, () => void>>(new Map())
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
+
+    function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event
+
+        if (over && active.id !== over.id) {
+            const oldIndex = tabs.findIndex(t => t.id === active.id)
+            const newIndex = tabs.findIndex(t => t.id === over.id)
+            onReorderTabs(arrayMove(tabs, oldIndex, newIndex))
+        }
+    }
 
     // Create or attach terminal for active tab
     useEffect(() => {
@@ -169,25 +251,27 @@ export default function TerminalPanel({
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 200, position: 'relative' }}>
             {/* Tab bar */}
-            <div className="terminal-tabs">
-                {tabs.map(tab => (
-                    <div
-                        key={tab.id}
-                        className={`terminal-tab ${tab.id === activeTabId ? 'active' : ''}`}
-                        onClick={() => onSelectTab(tab.id)}
+            <div className="terminal-tabs" style={{ display: 'flex', overflowX: 'auto' }}>
+                <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext 
+                        items={tabs.map(t => t.id)}
+                        strategy={horizontalListSortingStrategy}
                     >
-                        <span className={`tab-dot ${tab.connecting ? 'connecting' : tab.connected ? 'connected' : 'disconnected'}`} />
-                        <TerminalIcon size={12} />
-                        <span>{tab.name}</span>
-                        {tab.connecting && <Loader2 size={12} className="spin" />}
-                        <span
-                            className="tab-close"
-                            onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id) }}
-                        >
-                            <X size={10} />
-                        </span>
-                    </div>
-                ))}
+                        {tabs.map(tab => (
+                            <SortableTab 
+                                key={tab.id}
+                                tab={tab}
+                                activeTabId={activeTabId}
+                                onSelectTab={onSelectTab}
+                                onCloseTab={onCloseTab}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
             </div>
 
             {/* Terminal area */}
@@ -203,6 +287,27 @@ export default function TerminalPanel({
                 }}>
                     <Loader2 size={28} className="spin" style={{ color: 'var(--accent-blue)' }} />
                     <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Connecting...</span>
+                </div>
+            )}
+
+            {/* Disconnected overlay */}
+            {tabs.find(t => t.id === activeTabId && !t.connected && !t.connecting) && (
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.65)', zIndex: 10,
+                    flexDirection: 'column', gap: 16,
+                }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>Session Disconnected</span>
+                    <button 
+                        className="btn btn-primary"
+                        onClick={() => {
+                            if (activeTabId) onReconnect(activeTabId)
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 14 }}
+                    >
+                        <RefreshCw size={16} /> Reconnect
+                    </button>
                 </div>
             )}
         </div>

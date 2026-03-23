@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Workspace, Tag, AppSettings } from '../types'
 import { WORKSPACE_ICONS, TAG_COLORS } from '../lib/utils'
+import DataManagementModal from './DataManagementModal'
 
 // ── Workspace Modal ─────────────────────────────────────────
 
@@ -170,8 +171,17 @@ interface SettingsProps {
 }
 
 export function SettingsPanel({ settings, onUpdate, onClose }: SettingsProps) {
+    const [showDataModal, setShowDataModal] = useState(false)
+
     return (
         <div className="settings-panel">
+            {showDataModal && (
+                <DataManagementModal 
+                    onClose={() => setShowDataModal(false)}
+                    onExport={window.sshTool.exportData}
+                    onImport={window.sshTool.importData}
+                />
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                 <h2 style={{ margin: 0 }}>Settings</h2>
                 <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
@@ -221,6 +231,18 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsProps) {
                             onChange={e => onUpdate({ defaultUsername: e.target.value })}
                         />
                     </div>
+                </div>
+            </div>
+
+            <div className="settings-section">
+                <h3>Data Management</h3>
+                <div className="form-group">
+                    <button className="btn btn-secondary" onClick={() => setShowDataModal(true)}>
+                        Import / Export Data
+                    </button>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+                        Backup or restore your connections, folders, and settings securely.
+                    </p>
                 </div>
             </div>
         </div>

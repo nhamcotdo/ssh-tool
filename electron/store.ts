@@ -41,6 +41,14 @@ function setUserData(userId: string, data: UserData): void {
   store.set('userData', all)
 }
 
+export function getUserDataRaw(userId: string): UserData {
+  return getUserData(userId)
+}
+
+export function setUserDataRaw(userId: string, data: UserData): void {
+  setUserData(userId, data)
+}
+
 // ── Connections ──────────────────────────────────────────────
 
 export function getConnections(userId: string): SSHConnection[] {
