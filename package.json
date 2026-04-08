@@ -1,7 +1,10 @@
 {
   "name": "ssh-tool",
+  "productName": "SSHTool",
+  "version": "1.0.0",
+  "description": "A modern desktop SSH client.",
+  "author": "Nham Nguyen",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
