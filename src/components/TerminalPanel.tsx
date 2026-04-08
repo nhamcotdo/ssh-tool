@@ -158,6 +158,8 @@ export default function TerminalPanel({
 
             const div = document.createElement('div')
             div.style.height = '100%'
+            div.style.width = '100%'
+            div.style.overflow = 'hidden'
             div.style.padding = '4px'
             div.dataset.tabId = activeTabId
             container.appendChild(div)
@@ -249,7 +251,7 @@ export default function TerminalPanel({
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 200, position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             {/* Tab bar */}
             <div className="terminal-tabs" style={{ display: 'flex', overflowX: 'auto' }}>
                 <DndContext 
@@ -274,10 +276,11 @@ export default function TerminalPanel({
                 </DndContext>
             </div>
 
-            {/* Terminal area */}
-            <div ref={containerRef} className="terminal-container" />
+            {/* Terminal area and Overlay Wrapper */}
+            <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                <div ref={containerRef} className="terminal-container" style={{ flex: 1, overflow: 'hidden' }} />
 
-            {/* Connecting overlay */}
+                {/* Connecting overlay */}
             {tabs.find(t => t.id === activeTabId)?.connecting && (
                 <div style={{
                     position: 'absolute', inset: 0,
@@ -310,6 +313,7 @@ export default function TerminalPanel({
                     </button>
                 </div>
             )}
+            </div>
         </div>
     )
 }
