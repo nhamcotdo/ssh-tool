@@ -37,6 +37,7 @@ export interface SSHConnection {
   folderId?: string
   tags: string[]
   notes?: string
+  logFiles?: { id: string; name: string; path: string }[]
   lastConnected?: number
   createdAt: number
   updatedAt: number

@@ -25,6 +25,13 @@ const api = {
   sshInput: (sessionId: string, data: string) => ipcRenderer.send('ssh:input', sessionId, data),
   sshResize: (sessionId: string, cols: number, rows: number) => ipcRenderer.send('ssh:resize', sessionId, cols, rows),
   sshTest: (connData: any) => ipcRenderer.invoke('ssh:test', connData),
+  sshExec: (connData: any, cmd: string) => ipcRenderer.invoke('ssh:exec', connData, cmd),
+  sshAnalyzeLog: (connData: any, logPath: string, filters: any) => ipcRenderer.invoke('ssh:analyze-log', connData, logPath, filters),
+  onSshAnalyzeStatus: (callback: (status: string) => void) => {
+    const handler = (_e: any, status: string) => callback(status)
+    ipcRenderer.on('ssh:analyze-status', handler)
+    return () => ipcRenderer.removeListener('ssh:analyze-status', handler)
+  },
   sshActiveSessions: () => ipcRenderer.invoke('ssh:active-sessions'),
 
   onSshData: (callback: (connectionId: string, data: string) => void) => {

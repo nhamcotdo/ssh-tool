@@ -15,8 +15,9 @@ import { WorkspaceModal, TagModal, SettingsPanel } from './components/Modals'
 import InputDialog from './components/InputDialog'
 import SSHKeyManager from './components/SSHKeyManager'
 import AuthScreen from './components/AuthScreen'
+import NginxAnalyticsPanel from './components/NginxAnalyticsPanel'
 
-type View = 'connections' | 'settings' | 'ssh-keys'
+type View = 'connections' | 'settings' | 'ssh-keys' | 'analytics'
 
 export default function App() {
   // ── Auth state ──
@@ -39,6 +40,7 @@ export default function App() {
 
   // ── UI state ──
   const [view, setView] = useState<View>('connections')
+  const [analyticsConnection, setAnalyticsConnection] = useState<SSHConnection | null>(null)
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('default')
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
@@ -163,6 +165,11 @@ export default function App() {
 
   async function handleTestConnection(data: any) {
     return await window.sshTool.sshTest(data)
+  }
+
+  function handleAnalytics(c: SSHConnection) {
+    setAnalyticsConnection(c)
+    setView('analytics')
   }
 
   // ── SSH Connect (multi-tab) ──
@@ -483,6 +490,11 @@ export default function App() {
             onDeleteKey={handleDeleteSSHKey}
             onClose={() => setView('connections')}
           />
+        ) : view === 'analytics' && analyticsConnection ? (
+          <NginxAnalyticsPanel
+            connection={analyticsConnection}
+            onClose={() => { setView('connections'); setAnalyticsConnection(null); }}
+          />
         ) : (
           <>
             {/* Header */}
@@ -529,6 +541,7 @@ export default function App() {
                               onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
                               onDuplicate={handleDuplicateConnection}
                               onDelete={handleDeleteConnection}
+                              onAnalytics={handleAnalytics}
                             />
                           ))}
                         </div>
@@ -581,6 +594,7 @@ export default function App() {
                           onEdit={(conn) => { setEditingConnection(conn); setShowConnectionForm(true) }}
                           onDuplicate={handleDuplicateConnection}
                           onDelete={handleDeleteConnection}
+                          onAnalytics={handleAnalytics}
                         />
                       ))}
                     </div>

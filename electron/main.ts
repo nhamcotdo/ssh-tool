@@ -234,6 +234,16 @@ ipcMain.handle('ssh:test', async (_e, connData: SSHConnection) => {
   return sshManager.testConnection(connData)
 })
 
+ipcMain.handle('ssh:exec', async (_e, connData: SSHConnection, command: string) => {
+  return sshManager.execCommand(connData, command)
+})
+
+ipcMain.handle('ssh:analyze-log', async (event, connData: SSHConnection, logPath: string, filters: any) => {
+  return sshManager.downloadAndParseLog(connData, logPath, filters, (status) => {
+    event.sender.send('ssh:analyze-status', status)
+  })
+})
+
 ipcMain.handle('ssh:active-sessions', () => sshManager.getActiveSessions())
 
 // ── IPC: Workspaces ───────────────────────────────────────────

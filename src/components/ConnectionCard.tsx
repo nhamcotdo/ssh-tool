@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-    Play, Pencil, Copy, Trash2, Key, Lock, ArrowRightLeft,
+    Play, Pencil, Copy, Trash2, Key, Lock, ArrowRightLeft, Activity
 } from 'lucide-react'
 import type { SSHConnection, Tag } from '../types'
 import { timeAgo } from '../lib/utils'
@@ -15,10 +15,11 @@ interface ConnectionCardProps {
     onEdit: (c: SSHConnection) => void
     onDuplicate: (id: string) => void
     onDelete: (id: string) => void
+    onAnalytics: (c: SSHConnection) => void
 }
 
 export default function ConnectionCard({
-    connection: c, tags, onConnect, onEdit, onDuplicate, onDelete,
+    connection: c, tags, onConnect, onEdit, onDuplicate, onDelete, onAnalytics,
 }: ConnectionCardProps) {
     const connTags = tags.filter(t => c.tags.includes(t.id))
     const authIcon = c.authType === 'password' ? <Lock size={11} /> : <Key size={11} />
@@ -38,6 +39,11 @@ export default function ConnectionCard({
                     <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onEdit(c) }} title="Edit">
                         <Pencil size={14} />
                     </button>
+                    {c.logFiles && c.logFiles.length > 0 && (
+                        <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onAnalytics(c) }} title="Analytics">
+                            <Activity size={14} />
+                        </button>
+                    )}
                     <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onDuplicate(c.id) }} title="Duplicate">
                         <Copy size={14} />
                     </button>

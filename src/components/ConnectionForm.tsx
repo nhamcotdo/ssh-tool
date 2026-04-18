@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { X, FolderOpen, Zap } from 'lucide-react'
+import { X, FolderOpen, Zap, Plus, Trash2 } from 'lucide-react'
 import type { SSHConnection, SSHKey, Workspace, Folder, Tag, ProxyJumpConfig } from '../types'
 import { TAG_COLORS } from '../lib/utils'
 
@@ -50,6 +50,7 @@ export default function ConnectionForm({
     const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId || 'default')
     const [folderId, setFolderId] = useState<string | undefined>(initialFolderId)
     const [selectedTags, setSelectedTags] = useState<string[]>([])
+    const [logFiles, setLogFiles] = useState<{ id: string; name: string; path: string }[]>([])
     const [notes, setNotes] = useState('')
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -68,6 +69,7 @@ export default function ConnectionForm({
             setWorkspaceId(connection.workspaceId)
             setFolderId(connection.folderId)
             setSelectedTags(connection.tags)
+            setLogFiles(connection.logFiles || [])
             setNotes(connection.notes || '')
         }
     }, [connection])
@@ -88,7 +90,7 @@ export default function ConnectionForm({
             privateKeyPath: authType !== 'password' ? privateKeyPath : undefined,
             passphrase: authType === 'key+passphrase' ? passphrase : undefined,
             proxyJump: proxyJump.enabled ? proxyJump : { ...defaultProxy, enabled: false },
-            workspaceId, folderId, tags: selectedTags, notes,
+            workspaceId, folderId, tags: selectedTags, logFiles, notes,
         }
     }
 
@@ -504,6 +506,62 @@ export default function ConnectionForm({
                             onChange={e => setNotes(e.target.value)}
                             rows={2}
                         />
+                    </div>
+
+                    {/* Nginx Log Files */}
+                    <div className="divider" />
+                    <div className="form-group">
+                        <label className="form-label">
+                            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                Nginx Log Files to Analyze
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setLogFiles(prev => [...prev, { id: crypto.randomUUID(), name: '', path: '' }])}
+                                    style={{ padding: '4px 8px', fontSize: 11 }}
+                                >
+                                    <Plus size={12} /> Add
+                                </button>
+                            </span>
+                        </label>
+                        {logFiles.length === 0 ? (
+                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No log files configured. Add a file (e.g. /var/log/nginx/access.log) to enable analytics.</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {logFiles.map((file, i) => (
+                                    <div key={file.id} style={{ display: 'flex', gap: 8 }}>
+                                        <input
+                                            className="form-input"
+                                            placeholder="Name (e.g. Primary Web)"
+                                            value={file.name}
+                                            onChange={e => {
+                                                const newLogFiles = [...logFiles]
+                                                newLogFiles[i].name = e.target.value
+                                                setLogFiles(newLogFiles)
+                                            }}
+                                            style={{ flex: 1 }}
+                                        />
+                                        <input
+                                            className="form-input"
+                                            placeholder="Path: /var/log/nginx/access.log"
+                                            value={file.path}
+                                            onChange={e => {
+                                                const newLogFiles = [...logFiles]
+                                                newLogFiles[i].path = e.target.value
+                                                setLogFiles(newLogFiles)
+                                            }}
+                                            style={{ flex: 2 }}
+                                        />
+                                        <button
+                                            className="icon-btn"
+                                            style={{ color: 'var(--accent-red)' }}
+                                            onClick={() => setLogFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Test Result */}

@@ -27,6 +27,7 @@ export interface SSHConnection {
   folderId?: string        // optional folder within workspace
   tags: string[]
   notes?: string
+  logFiles?: { id: string; name: string; path: string }[]
   lastConnected?: number
   createdAt: number
   updatedAt: number

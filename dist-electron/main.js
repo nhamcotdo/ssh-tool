@@ -1,254 +1,255 @@
-import { ipcMain as a, app as S, dialog as E, BrowserWindow as M, powerMonitor as L } from "electron";
-import { createRequire as te } from "node:module";
-import { fileURLToPath as ne } from "node:url";
-import y from "node:path";
-import k, { randomFillSync as se, randomUUID as re, randomBytes as oe, scryptSync as W, timingSafeEqual as ae } from "node:crypto";
-import H from "node:fs/promises";
-import N from "electron-store";
-import { Client as I } from "ssh2";
-import { readFileSync as K } from "node:fs";
-const l = [];
+import { ipcMain as u, app as K, dialog as R, BrowserWindow as J, powerMonitor as $ } from "electron";
+import { createRequire as ne } from "node:module";
+import { fileURLToPath as se } from "node:url";
+import _ from "node:path";
+import v, { randomFillSync as re, randomUUID as ae, randomBytes as oe, scryptSync as H, timingSafeEqual as ie } from "node:crypto";
+import W from "node:fs/promises";
+import V from "electron-store";
+import { Client as x } from "ssh2";
+import { readFileSync as U } from "node:fs";
+import ce from "node:readline";
+const w = [];
 for (let e = 0; e < 256; ++e)
-  l.push((e + 256).toString(16).slice(1));
-function ce(e, t = 0) {
-  return (l[e[t + 0]] + l[e[t + 1]] + l[e[t + 2]] + l[e[t + 3]] + "-" + l[e[t + 4]] + l[e[t + 5]] + "-" + l[e[t + 6]] + l[e[t + 7]] + "-" + l[e[t + 8]] + l[e[t + 9]] + "-" + l[e[t + 10]] + l[e[t + 11]] + l[e[t + 12]] + l[e[t + 13]] + l[e[t + 14]] + l[e[t + 15]]).toLowerCase();
+  w.push((e + 256).toString(16).slice(1));
+function ue(e, t = 0) {
+  return (w[e[t + 0]] + w[e[t + 1]] + w[e[t + 2]] + w[e[t + 3]] + "-" + w[e[t + 4]] + w[e[t + 5]] + "-" + w[e[t + 6]] + w[e[t + 7]] + "-" + w[e[t + 8]] + w[e[t + 9]] + "-" + w[e[t + 10]] + w[e[t + 11]] + w[e[t + 12]] + w[e[t + 13]] + w[e[t + 14]] + w[e[t + 15]]).toLowerCase();
 }
-const P = new Uint8Array(256);
-let b = P.length;
-function ie() {
-  return b > P.length - 16 && (se(P), b = 0), P.slice(b, b += 16);
+const E = new Uint8Array(256);
+let F = E.length;
+function de() {
+  return F > E.length - 16 && (re(E), F = 0), E.slice(F, F += 16);
 }
-const j = { randomUUID: re };
-function ue(e, t, n) {
-  var r;
+const B = { randomUUID: ae };
+function le(e, t, n) {
+  var a;
   e = e || {};
-  const s = e.random ?? ((r = e.rng) == null ? void 0 : r.call(e)) ?? ie();
+  const s = e.random ?? ((a = e.rng) == null ? void 0 : a.call(e)) ?? de();
   if (s.length < 16)
     throw new Error("Random bytes length must be >= 16");
-  return s[6] = s[6] & 15 | 64, s[8] = s[8] & 63 | 128, ce(s);
+  return s[6] = s[6] & 15 | 64, s[8] = s[8] & 63 | 128, ue(s);
 }
-function _(e, t, n) {
-  return j.randomUUID && !e ? j.randomUUID() : ue(e);
+function I(e, t, n) {
+  return B.randomUUID && !e ? B.randomUUID() : le(e);
 }
-const de = {
+const fe = {
   terminalFontSize: 14,
   terminalFontFamily: 'Menlo, Monaco, "Courier New", monospace',
   defaultPort: 22,
   defaultUsername: "root"
-}, le = {
+}, pe = {
   id: "default",
   name: "All Connections",
   icon: "🏠",
   color: "#3b82f6",
   order: 0,
   createdAt: Date.now()
-}, x = new N({
+}, N = new V({
   defaults: {
     userData: {}
   }
 });
-function u(e) {
-  const t = x.get("userData");
+function p(e) {
+  const t = N.get("userData");
   if (!t[e]) {
     const n = {
       connections: [],
-      workspaces: [{ ...le, createdAt: Date.now() }],
+      workspaces: [{ ...pe, createdAt: Date.now() }],
       folders: [],
       tags: [],
       sshKeys: [],
-      settings: { ...de }
+      settings: { ...fe }
     };
-    t[e] = n, x.set("userData", t);
+    t[e] = n, N.set("userData", t);
   }
   return t[e];
 }
-function f(e, t) {
-  const n = x.get("userData");
-  n[e] = t, x.set("userData", n);
+function D(e, t) {
+  const n = N.get("userData");
+  n[e] = t, N.set("userData", n);
 }
-function fe(e) {
-  return u(e);
-}
-function he(e, t) {
-  f(e, t);
-}
-function pe(e) {
-  return u(e).connections;
-}
-function R(e, t) {
-  return u(e).connections.find((n) => n.id === t);
-}
-function V(e, t) {
-  const n = Date.now(), s = {
-    ...t,
-    id: _(),
-    createdAt: n,
-    updatedAt: n
-  }, r = u(e);
-  return r.connections.push(s), f(e, r), s;
-}
-function $(e, t, n) {
-  const s = u(e), r = s.connections.findIndex((o) => o.id === t);
-  return r === -1 ? null : (s.connections[r] = { ...s.connections[r], ...n, updatedAt: Date.now() }, f(e, s), s.connections[r]);
-}
-function ge(e, t) {
-  const n = u(e), s = n.connections.length;
-  return n.connections = n.connections.filter((r) => r.id !== t), n.connections.length === s ? !1 : (f(e, n), !0);
+function he(e) {
+  return p(e);
 }
 function me(e, t) {
-  const n = R(e, t);
-  if (!n) return null;
-  const { id: s, createdAt: r, updatedAt: o, ...c } = n;
-  return V(e, { ...c, name: `${n.name} (copy)` });
+  D(e, t);
+}
+function ge(e) {
+  return p(e).connections;
+}
+function O(e, t) {
+  return p(e).connections.find((n) => n.id === t);
+}
+function q(e, t) {
+  const n = Date.now(), s = {
+    ...t,
+    id: I(),
+    createdAt: n,
+    updatedAt: n
+  }, a = p(e);
+  return a.connections.push(s), D(e, a), s;
+}
+function z(e, t, n) {
+  const s = p(e), a = s.connections.findIndex((r) => r.id === t);
+  return a === -1 ? null : (s.connections[a] = { ...s.connections[a], ...n, updatedAt: Date.now() }, D(e, s), s.connections[a]);
 }
 function ye(e, t) {
-  $(e, t, { lastConnected: Date.now() });
+  const n = p(e), s = n.connections.length;
+  return n.connections = n.connections.filter((a) => a.id !== t), n.connections.length === s ? !1 : (D(e, n), !0);
 }
-function we(e) {
-  return u(e).workspaces.sort((t, n) => t.order - n.order);
+function we(e, t) {
+  const n = O(e, t);
+  if (!n) return null;
+  const { id: s, createdAt: a, updatedAt: r, ...o } = n;
+  return q(e, { ...o, name: `${n.name} (copy)` });
+}
+function De(e, t) {
+  z(e, t, { lastConnected: Date.now() });
+}
+function Se(e) {
+  return p(e).workspaces.sort((t, n) => t.order - n.order);
 }
 function ke(e, t) {
-  const n = u(e), s = {
+  const n = p(e), s = {
     ...t,
-    id: _(),
+    id: I(),
     order: n.workspaces.length,
     createdAt: Date.now()
   };
-  return n.workspaces.push(s), f(e, n), s;
+  return n.workspaces.push(s), D(e, n), s;
 }
 function _e(e, t, n) {
-  const s = u(e), r = s.workspaces.findIndex((o) => o.id === t);
-  return r === -1 ? null : (s.workspaces[r] = { ...s.workspaces[r], ...n }, f(e, s), s.workspaces[r]);
-}
-function De(e, t) {
-  if (t === "default") return !1;
-  const n = u(e);
-  return n.workspaces = n.workspaces.filter((s) => s.id !== t), n.connections.forEach((s) => {
-    s.workspaceId === t && (s.workspaceId = "default");
-  }), f(e, n), !0;
-}
-function J(e) {
-  return u(e).folders.sort((t, n) => t.order - n.order);
-}
-function Se(e, t) {
-  return J(e).filter((n) => n.workspaceId === t);
-}
-function ve(e, t) {
-  const n = u(e), s = {
-    ...t,
-    id: _(),
-    parentId: t.parentId || void 0,
-    order: n.folders.filter((r) => r.workspaceId === t.workspaceId).length,
-    createdAt: Date.now()
-  };
-  return n.folders.push(s), f(e, n), s;
-}
-function Ce(e, t, n) {
-  const s = u(e), r = s.folders.findIndex((o) => o.id === t);
-  return r === -1 ? null : (s.folders[r] = { ...s.folders[r], ...n }, f(e, s), s.folders[r]);
-}
-function be(e, t) {
-  const n = u(e), s = /* @__PURE__ */ new Set();
-  function r(o) {
-    s.add(o), n.folders.filter((c) => c.parentId === o).forEach((c) => r(c.id));
-  }
-  return r(t), n.folders = n.folders.filter((o) => !s.has(o.id)), n.connections.forEach((o) => {
-    o.folderId && s.has(o.folderId) && (o.folderId = void 0);
-  }), f(e, n), !0;
-}
-function Pe(e) {
-  return u(e).tags;
+  const s = p(e), a = s.workspaces.findIndex((r) => r.id === t);
+  return a === -1 ? null : (s.workspaces[a] = { ...s.workspaces[a], ...n }, D(e, s), s.workspaces[a]);
 }
 function xe(e, t) {
-  const n = { ...t, id: _() }, s = u(e);
-  return s.tags.push(n), f(e, s), n;
+  if (t === "default") return !1;
+  const n = p(e);
+  return n.workspaces = n.workspaces.filter((s) => s.id !== t), n.connections.forEach((s) => {
+    s.workspaceId === t && (s.workspaceId = "default");
+  }), D(e, n), !0;
 }
-function Ae(e, t, n) {
-  const s = u(e), r = s.tags.findIndex((o) => o.id === t);
-  return r === -1 ? null : (s.tags[r] = { ...s.tags[r], ...n }, f(e, s), s.tags[r]);
+function j(e) {
+  return p(e).folders.sort((t, n) => t.order - n.order);
+}
+function Ce(e, t) {
+  return j(e).filter((n) => n.workspaceId === t);
 }
 function Te(e, t) {
-  const n = u(e);
+  const n = p(e), s = {
+    ...t,
+    id: I(),
+    parentId: t.parentId || void 0,
+    order: n.folders.filter((a) => a.workspaceId === t.workspaceId).length,
+    createdAt: Date.now()
+  };
+  return n.folders.push(s), D(e, n), s;
+}
+function be(e, t, n) {
+  const s = p(e), a = s.folders.findIndex((r) => r.id === t);
+  return a === -1 ? null : (s.folders[a] = { ...s.folders[a], ...n }, D(e, s), s.folders[a]);
+}
+function ve(e, t) {
+  const n = p(e), s = /* @__PURE__ */ new Set();
+  function a(r) {
+    s.add(r), n.folders.filter((o) => o.parentId === r).forEach((o) => a(o.id));
+  }
+  return a(t), n.folders = n.folders.filter((r) => !s.has(r.id)), n.connections.forEach((r) => {
+    r.folderId && s.has(r.folderId) && (r.folderId = void 0);
+  }), D(e, n), !0;
+}
+function Ae(e) {
+  return p(e).tags;
+}
+function Ie(e, t) {
+  const n = { ...t, id: I() }, s = p(e);
+  return s.tags.push(n), D(e, s), n;
+}
+function Ke(e, t, n) {
+  const s = p(e), a = s.tags.findIndex((r) => r.id === t);
+  return a === -1 ? null : (s.tags[a] = { ...s.tags[a], ...n }, D(e, s), s.tags[a]);
+}
+function Ue(e, t) {
+  const n = p(e);
   return n.tags = n.tags.filter((s) => s.id !== t), n.connections.forEach((s) => {
-    s.tags = s.tags.filter((r) => r !== t);
-  }), f(e, n), !0;
+    s.tags = s.tags.filter((a) => a !== t);
+  }), D(e, n), !0;
 }
-function Ie(e) {
-  return u(e).settings;
-}
-function Ke(e, t) {
-  const n = u(e);
-  return n.settings = { ...n.settings, ...t }, f(e, n), n.settings;
-}
-function Ue(e) {
-  return u(e).sshKeys || [];
+function Fe(e) {
+  return p(e).settings;
 }
 function Ee(e, t) {
+  const n = p(e);
+  return n.settings = { ...n.settings, ...t }, D(e, n), n.settings;
+}
+function Ne(e) {
+  return p(e).sshKeys || [];
+}
+function Pe(e, t) {
   const n = {
     ...t,
-    id: _(),
+    id: I(),
     createdAt: Date.now()
-  }, s = u(e);
-  return s.sshKeys || (s.sshKeys = []), s.sshKeys.push(n), f(e, s), n;
+  }, s = p(e);
+  return s.sshKeys || (s.sshKeys = []), s.sshKeys.push(n), D(e, s), n;
 }
 function Re(e, t, n) {
-  const s = u(e);
+  const s = p(e);
   if (!s.sshKeys) return null;
-  const r = s.sshKeys.findIndex((o) => o.id === t);
-  return r === -1 ? null : (s.sshKeys[r] = { ...s.sshKeys[r], ...n }, f(e, s), s.sshKeys[r]);
+  const a = s.sshKeys.findIndex((r) => r.id === t);
+  return a === -1 ? null : (s.sshKeys[a] = { ...s.sshKeys[a], ...n }, D(e, s), s.sshKeys[a]);
 }
-function Fe(e, t) {
-  const n = u(e);
+function Oe(e, t) {
+  const n = p(e);
   if (!n.sshKeys) return !1;
-  const s = n.sshKeys.filter((r) => r.id !== t);
-  return s.length === n.sshKeys.length ? !1 : (n.sshKeys = s, f(e, n), !0);
+  const s = n.sshKeys.filter((a) => a.id !== t);
+  return s.length === n.sshKeys.length ? !1 : (n.sshKeys = s, D(e, n), !0);
 }
-const w = new N({
+const C = new V({
   name: "auth",
   defaults: {
     users: [],
     currentUserId: null
   }
 });
-function Oe(e, t) {
-  return W(e, t, 64).toString("hex");
+function Le(e, t) {
+  return H(e, t, 64).toString("hex");
 }
-function Be(e, t, n) {
-  const s = Buffer.from(n, "hex"), r = W(e, t, 64);
-  return ae(s, r);
+function Me(e, t, n) {
+  const s = Buffer.from(n, "hex"), a = H(e, t, 64);
+  return ie(s, a);
 }
-function F() {
-  const e = w.get("currentUserId");
+function L() {
+  const e = C.get("currentUserId");
   if (!e) return null;
-  const t = w.get("users").find((n) => n.id === e);
+  const t = C.get("users").find((n) => n.id === e);
   return t ? { id: t.id, username: t.username } : null;
 }
-function Le(e, t) {
-  const n = w.get("users");
-  if (n.find((c) => c.username.toLowerCase() === e.toLowerCase()))
+function $e(e, t) {
+  const n = C.get("users");
+  if (n.find((o) => o.username.toLowerCase() === e.toLowerCase()))
     return { success: !1, message: "Username already exists" };
   if (!e || e.length < 2)
     return { success: !1, message: "Username must be at least 2 characters" };
   if (!t || t.length < 4)
     return { success: !1, message: "Password must be at least 4 characters" };
-  const s = oe(16).toString("hex"), r = Oe(t, s), o = {
-    id: _(),
+  const s = oe(16).toString("hex"), a = Le(t, s), r = {
+    id: I(),
     username: e,
-    passwordHash: r,
+    passwordHash: a,
     salt: s,
     createdAt: Date.now()
   };
-  return n.push(o), w.set("users", n), w.set("currentUserId", o.id), { success: !0, message: "Account created", user: { id: o.id, username: o.username } };
+  return n.push(r), C.set("users", n), C.set("currentUserId", r.id), { success: !0, message: "Account created", user: { id: r.id, username: r.username } };
 }
-function je(e, t) {
-  const s = w.get("users").find((r) => r.username.toLowerCase() === e.toLowerCase());
-  return s ? Be(t, s.salt, s.passwordHash) ? (w.set("currentUserId", s.id), { success: !0, message: "Logged in", user: { id: s.id, username: s.username } }) : { success: !1, message: "Invalid username or password" } : { success: !1, message: "Invalid username or password" };
+function Be(e, t) {
+  const s = C.get("users").find((a) => a.username.toLowerCase() === e.toLowerCase());
+  return s ? Me(t, s.salt, s.passwordHash) ? (C.set("currentUserId", s.id), { success: !0, message: "Logged in", user: { id: s.id, username: s.username } }) : { success: !1, message: "Invalid username or password" } : { success: !1, message: "Invalid username or password" };
 }
-function q() {
-  w.set("currentUserId", null);
+function G() {
+  C.set("currentUserId", null);
 }
-const m = /* @__PURE__ */ new Map();
-function z(e) {
+const k = /* @__PURE__ */ new Map();
+function A(e) {
   const t = {
     host: e.host,
     port: e.port,
@@ -261,111 +262,111 @@ function z(e) {
       t.password = e.password;
       break;
     case "key":
-      e.privateKeyPath && (t.privateKey = K(e.privateKeyPath));
+      e.privateKeyPath && (t.privateKey = U(e.privateKeyPath));
       break;
     case "key+passphrase":
-      e.privateKeyPath && (t.privateKey = K(e.privateKeyPath), t.passphrase = e.passphrase);
+      e.privateKeyPath && (t.privateKey = U(e.privateKeyPath), t.passphrase = e.passphrase);
       break;
   }
   return t;
 }
-function Me(e, t, n, s, r) {
-  const o = e.proxyJump, c = new I(), d = {
-    host: o.host,
-    port: o.port,
-    username: o.username,
+function Je(e, t, n, s, a) {
+  const r = e.proxyJump, o = new x(), i = {
+    host: r.host,
+    port: r.port,
+    username: r.username,
     readyTimeout: 1e4
   };
-  o.authType === "password" ? d.password = o.password : o.privateKeyPath && (d.privateKey = K(o.privateKeyPath)), c.on("ready", () => {
-    c.forwardOut(
+  r.authType === "password" ? i.password = r.password : r.privateKeyPath && (i.privateKey = U(r.privateKeyPath)), o.on("ready", () => {
+    o.forwardOut(
       "127.0.0.1",
       0,
       e.host,
       e.port,
-      (p, D) => {
-        if (p) {
-          c.end(), n(p);
+      (l, c) => {
+        if (l) {
+          o.end(), n(l);
           return;
         }
-        const g = new I(), v = z(e);
-        v.sock = D, g.on("ready", () => {
-          g.shell({ term: "xterm-256color" }, (C, A) => {
-            if (C) {
-              g.end(), c.end(), n(C);
+        const d = new x(), y = A(e);
+        y.sock = c, d.on("ready", () => {
+          d.shell({ term: "xterm-256color" }, (h, m) => {
+            if (h) {
+              d.end(), o.end(), n(h);
               return;
             }
-            const T = `${e.id}-${Date.now()}`, B = {
-              id: T,
+            const g = `${e.id}-${Date.now()}`, T = {
+              id: g,
               connectionId: e.id,
-              client: g,
-              stream: A,
-              jumpClient: c
+              client: d,
+              stream: m,
+              jumpClient: o
             };
-            m.set(T, B), A.on("data", (ee) => s(ee.toString("utf-8"))), A.on("close", () => {
-              m.delete(T), g.end(), c.end(), r();
-            }), t(B);
+            k.set(g, T), m.on("data", (b) => s(b.toString("utf-8"))), m.on("close", () => {
+              k.delete(g), d.end(), o.end(), a();
+            }), t(T);
           });
-        }), g.on("error", (C) => {
-          c.end(), n(C);
-        }), g.connect(v);
+        }), d.on("error", (h) => {
+          o.end(), n(h);
+        }), d.connect(y);
       }
     );
-  }), c.on("error", n), c.connect(d);
+  }), o.on("error", n), o.connect(i);
 }
-function We(e, t, n, s, r) {
-  const o = new I(), c = z(e);
-  o.on("ready", () => {
-    o.shell({ term: "xterm-256color" }, (d, p) => {
-      if (d) {
-        o.end(), n(d);
+function He(e, t, n, s, a) {
+  const r = new x(), o = A(e);
+  r.on("ready", () => {
+    r.shell({ term: "xterm-256color" }, (i, l) => {
+      if (i) {
+        r.end(), n(i);
         return;
       }
-      const D = `${e.id}-${Date.now()}`, g = {
-        id: D,
+      const c = `${e.id}-${Date.now()}`, d = {
+        id: c,
         connectionId: e.id,
-        client: o,
-        stream: p
+        client: r,
+        stream: l
       };
-      m.set(D, g), p.on("data", (v) => s(v.toString("utf-8"))), p.on("close", () => {
-        m.delete(D), o.end(), r();
-      }), t(g);
+      k.set(c, d), l.on("data", (y) => s(y.toString("utf-8"))), l.on("close", () => {
+        k.delete(c), r.end(), a();
+      }), t(d);
     });
-  }), o.on("error", n), o.connect(c);
+  }), r.on("error", n), r.connect(o);
 }
-function G(e, t, n, s, r) {
-  var o;
-  (o = e.proxyJump) != null && o.enabled ? Me(e, t, n, s, r) : We(e, t, n, s, r);
+function Y(e, t, n, s, a) {
+  var r;
+  (r = e.proxyJump) != null && r.enabled ? Je(e, t, n, s, a) : He(e, t, n, s, a);
 }
-function O(e) {
+function M(e) {
   var n, s;
-  const t = m.get(e);
-  t && ((n = t.stream) == null || n.end(), t.client.end(), (s = t.jumpClient) == null || s.end(), m.delete(e));
+  const t = k.get(e);
+  t && ((n = t.stream) == null || n.end(), t.client.end(), (s = t.jumpClient) == null || s.end(), k.delete(e));
 }
-function He(e, t) {
+function We(e, t) {
   var s;
-  const n = m.get(e);
+  const n = k.get(e);
   (s = n == null ? void 0 : n.stream) == null || s.write(t);
 }
-function Ne(e, t, n) {
-  var r;
-  const s = m.get(e);
-  (r = s == null ? void 0 : s.stream) == null || r.setWindow(n, t, 0, 0);
+function Ve(e, t, n) {
+  var a;
+  const s = k.get(e);
+  (a = s == null ? void 0 : s.stream) == null || a.setWindow(n, t, 0, 0);
 }
-function Ve() {
-  return Array.from(m.keys());
+function qe() {
+  return Array.from(k.keys());
 }
-function $e() {
-  for (const [e] of m)
-    O(e);
+function ze() {
+  for (const [e] of k)
+    M(e);
 }
-async function Je(e) {
+async function je(e) {
   return new Promise((t) => {
     const n = Date.now();
-    G(e, (d) => {
-      const p = Date.now() - n;
-      O(d.id), t({ success: !0, message: `Connected in ${p}ms`, latency: p });
-    }, (d) => {
-      t({ success: !1, message: d.message });
+    Y(e, (i) => {
+      const l = Date.now() - n;
+      M(i.id), t({ success: !0, message: `Connected in ${l}ms`, latency: l });
+    }, (i) => {
+      t({ success: !1, message: i.message });
     }, () => {
     }, () => {
     }), setTimeout(() => {
@@ -373,149 +374,327 @@ async function Je(e) {
     }, 15e3);
   });
 }
-te(import.meta.url);
-const Q = y.dirname(ne(import.meta.url));
-process.env.APP_ROOT = y.join(Q, "..");
-const U = process.env.VITE_DEV_SERVER_URL, rt = y.join(process.env.APP_ROOT, "dist-electron"), X = y.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = U ? y.join(process.env.APP_ROOT, "public") : X;
-let h;
-function Y() {
-  h = new M({
+async function Ge(e, t) {
+  return new Promise((n, s) => {
+    var o;
+    let a = "";
+    const r = (i, l, c) => {
+      l.on("data", (d) => {
+        a += d.toString("utf-8");
+      }), l.stderr.on("data", (d) => {
+        a += d.toString("utf-8");
+      }), l.on("close", () => {
+        i.end(), c && c.end(), n(a);
+      });
+    };
+    if ((o = e.proxyJump) != null && o.enabled) {
+      const i = e.proxyJump, l = new x(), c = {
+        host: i.host,
+        port: i.port,
+        username: i.username,
+        readyTimeout: 1e4
+      };
+      i.authType === "password" ? c.password = i.password : i.privateKeyPath && (c.privateKey = U(i.privateKeyPath)), l.on("ready", () => {
+        l.forwardOut("127.0.0.1", 0, e.host, e.port, (d, y) => {
+          if (d)
+            return l.end(), s(d);
+          const h = new x(), m = A(e);
+          m.sock = y, h.on("ready", () => {
+            h.exec(t, (g, T) => {
+              if (g)
+                return h.end(), l.end(), s(g);
+              r(h, T, l);
+            });
+          }), h.on("error", (g) => {
+            l.end(), s(g);
+          }), h.connect(m);
+        });
+      }), l.on("error", s), l.connect(c);
+    } else {
+      const i = new x(), l = A(e);
+      i.on("ready", () => {
+        i.exec(t, (c, d) => {
+          if (c)
+            return i.end(), s(c);
+          r(i, d);
+        });
+      }), i.on("error", s), i.connect(l);
+    }
+  });
+}
+const Ye = /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([^"]*)"\s+(\d+)\s+(\d+|-)\s+"([^"]*)"\s+"([^"]*)"/;
+function Xe(e) {
+  const t = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], n = (r) => `${r.getDate().toString().padStart(2, "0")}/${t[r.getMonth()]}/${r.getFullYear()}`;
+  if (e.dateFilter === "this_month") {
+    const r = /* @__PURE__ */ new Date();
+    return `${t[r.getMonth()]}/${r.getFullYear()}`;
+  }
+  const s = [], a = /* @__PURE__ */ new Date();
+  if (e.dateFilter === "today")
+    s.push(a);
+  else if (e.dateFilter === "7days")
+    for (let r = 0; r < 7; r++) {
+      const o = /* @__PURE__ */ new Date();
+      o.setDate(o.getDate() - r), s.push(o);
+    }
+  else if (e.dateFilter === "specific" && e.startDate) {
+    const [r, o, i] = e.startDate.split("-").map(Number);
+    isNaN(r) || s.push(new Date(r, o - 1, i));
+  } else if (e.dateFilter === "range" && e.startDate && e.endDate) {
+    let [r, o, i] = e.startDate.split("-").map(Number), [l, c, d] = e.endDate.split("-").map(Number);
+    if (!isNaN(r) && !isNaN(l)) {
+      const y = new Date(r, o - 1, i), h = new Date(l, c - 1, d);
+      let m = new Date(y), g = 0;
+      for (; m <= h && g < 32; )
+        s.push(new Date(m)), m.setDate(m.getDate() + 1), g++;
+    }
+  }
+  return s.length > 0 ? s.map((r) => n(r)).join("|") : "";
+}
+async function Qe(e, t, n, s) {
+  return s == null || s("Đang khởi tạo kết nối SSH..."), new Promise((a, r) => {
+    var l;
+    let o = `tail -n 200000 "${t}"`;
+    if (n) {
+      const c = Xe(n);
+      c && c.includes("|") ? o = `grep -E "${c}" "${t}" | tail -n 200000` : c && (o = `grep "${c}" "${t}" | tail -n 200000`);
+    }
+    const i = (c, d, y) => {
+      let h = !1;
+      const m = () => {
+        h || (h = !0, c.end(), y && y.end());
+      };
+      s == null || s("Đang bắt đầu đọc luồng dữ liệu..."), Ze(d).then((g) => {
+        m(), a(g);
+      }).catch((g) => {
+        m(), r(g);
+      }), d.on("close", () => {
+        m();
+      });
+    };
+    if ((l = e.proxyJump) != null && l.enabled) {
+      const c = e.proxyJump, d = new x(), y = {
+        host: c.host,
+        port: c.port,
+        username: c.username,
+        readyTimeout: 1e4
+      };
+      c.authType === "password" ? y.password = c.password : c.privateKeyPath && (y.privateKey = U(c.privateKeyPath)), s == null || s("Đang kết nối qua Proxy Jump..."), d.on("ready", () => {
+        s == null || s("Đang khởi tạo chuyển tiếp cổng..."), d.forwardOut("127.0.0.1", 0, e.host, e.port || 22, (h, m) => {
+          if (h)
+            return d.end(), r(h);
+          const g = new x(), T = A(e);
+          T.sock = m, g.on("ready", () => {
+            g.exec(o, (b, te) => {
+              if (b)
+                return g.end(), d.end(), r(b);
+              i(g, te, d);
+            });
+          }), g.on("error", (b) => {
+            d.end(), r(b);
+          }), g.connect(T);
+        });
+      }), d.on("error", r), d.connect(y);
+    } else {
+      const c = new x(), d = A(e);
+      c.on("ready", () => {
+        c.exec(o, (y, h) => {
+          if (y)
+            return c.end(), r(y);
+          i(c, h);
+        });
+      }), c.on("error", r), c.connect(d);
+    }
+  });
+}
+async function Ze(e) {
+  const t = ce.createInterface({ input: e, crlfDelay: 1 / 0 }), n = [], s = 30 * 24 * 60 * 60 * 1e3;
+  for await (const a of t) {
+    if (!a.trim()) continue;
+    const r = Ye.exec(a);
+    if (r)
+      try {
+        const i = r[2].replace(":", " "), l = new Date(i).getTime();
+        if (!isNaN(l)) {
+          const c = r[3].split(" ");
+          let d = parseInt(r[5], 10);
+          if (isNaN(d) && (d = 0), n.push({
+            raw: a,
+            ip: r[1],
+            timestamp: new Date(l).toISOString(),
+            method: c[0],
+            path: c[1] || "",
+            status: parseInt(r[4], 10),
+            bytes: d,
+            referer: r[6],
+            userAgent: r[7]
+          }), n.length % 5e4 === 0) {
+            const h = l - s;
+            let m = 0;
+            for (; m < n.length && new Date(n[m].timestamp).getTime() < h; )
+              m++;
+            m > 0 && n.splice(0, m);
+          }
+        }
+      } catch {
+      }
+  }
+  if (n.length > 0) {
+    const r = new Date(n[n.length - 1].timestamp).getTime() - s;
+    let o = 0;
+    for (; o < n.length && new Date(n[o].timestamp).getTime() < r; )
+      o++;
+    o > 0 && n.splice(0, o);
+  }
+  return n;
+}
+ne(import.meta.url);
+const X = _.dirname(se(import.meta.url));
+process.env.APP_ROOT = _.join(X, "..");
+const P = process.env.VITE_DEV_SERVER_URL, ft = _.join(process.env.APP_ROOT, "dist-electron"), Q = _.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = P ? _.join(process.env.APP_ROOT, "public") : Q;
+let S;
+function Z() {
+  S = new J({
     width: 1280,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#0a0a0a",
-    icon: y.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: _.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: y.join(Q, "preload.mjs"),
+      preload: _.join(X, "preload.mjs"),
       nodeIntegration: !1,
       contextIsolation: !0
     }
-  }), U ? h.loadURL(U) : h.loadFile(y.join(X, "index.html"));
+  }), P ? S.loadURL(P) : S.loadFile(_.join(Q, "index.html"));
 }
-function i() {
-  const e = F();
+function f() {
+  const e = L();
   if (!e) throw new Error("Not authenticated");
   return e.id;
 }
-a.handle("auth:register", (e, t, n) => Le(t, n));
-a.handle("auth:login", (e, t, n) => je(t, n));
-a.handle("auth:logout", () => (q(), { success: !0 }));
-a.handle("auth:current-user", () => F());
-const Z = "aes-256-gcm";
-function qe(e, t) {
+u.handle("auth:register", (e, t, n) => $e(t, n));
+u.handle("auth:login", (e, t, n) => Be(t, n));
+u.handle("auth:logout", () => (G(), { success: !0 }));
+u.handle("auth:current-user", () => L());
+const ee = "aes-256-gcm";
+function et(e, t) {
   if (!t) return JSON.stringify({ encrypted: !1, data: e });
-  const n = k.randomBytes(16), s = k.pbkdf2Sync(t, n, 1e5, 32, "sha256"), r = k.randomBytes(12), o = k.createCipheriv(Z, s, r);
-  let c = o.update(e, "utf8", "base64");
-  c += o.final("base64");
-  const d = o.getAuthTag();
+  const n = v.randomBytes(16), s = v.pbkdf2Sync(t, n, 1e5, 32, "sha256"), a = v.randomBytes(12), r = v.createCipheriv(ee, s, a);
+  let o = r.update(e, "utf8", "base64");
+  o += r.final("base64");
+  const i = r.getAuthTag();
   return JSON.stringify({
     encrypted: !0,
     salt: n.toString("base64"),
-    iv: r.toString("base64"),
-    authTag: d.toString("base64"),
-    data: c
+    iv: a.toString("base64"),
+    authTag: i.toString("base64"),
+    data: o
   });
 }
-function ze(e, t) {
+function tt(e, t) {
   const n = JSON.parse(e);
   if (!n.encrypted) return n.data;
   if (!t) throw new Error("A password is required to decrypt this backup");
-  const s = Buffer.from(n.salt, "base64"), r = Buffer.from(n.iv, "base64"), o = Buffer.from(n.authTag, "base64"), c = k.pbkdf2Sync(t, s, 1e5, 32, "sha256"), d = k.createDecipheriv(Z, c, r);
-  d.setAuthTag(o);
-  let p = d.update(n.data, "base64", "utf8");
-  return p += d.final("utf8"), p;
+  const s = Buffer.from(n.salt, "base64"), a = Buffer.from(n.iv, "base64"), r = Buffer.from(n.authTag, "base64"), o = v.pbkdf2Sync(t, s, 1e5, 32, "sha256"), i = v.createDecipheriv(ee, o, a);
+  i.setAuthTag(r);
+  let l = i.update(n.data, "base64", "utf8");
+  return l += i.final("utf8"), l;
 }
-a.handle("data:export", async (e, t) => {
-  const n = i(), s = fe(n), r = JSON.stringify(s), o = y.join(S.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`), c = await E.showSaveDialog(h, {
+u.handle("data:export", async (e, t) => {
+  const n = f(), s = he(n), a = JSON.stringify(s), r = _.join(K.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`), o = await R.showSaveDialog(S, {
     title: "Export Data",
-    defaultPath: o,
+    defaultPath: r,
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
   });
-  if (c.canceled || !c.filePath) return { success: !1, message: "Canceled" };
+  if (o.canceled || !o.filePath) return { success: !1, message: "Canceled" };
   try {
-    const d = qe(r, t);
-    return await H.writeFile(c.filePath, d, "utf8"), { success: !0 };
-  } catch (d) {
-    return { success: !1, message: d.message };
+    const i = et(a, t);
+    return await W.writeFile(o.filePath, i, "utf8"), { success: !0 };
+  } catch (i) {
+    return { success: !1, message: i.message };
   }
 });
-a.handle("data:import", async (e, t) => {
-  const n = i(), s = await E.showOpenDialog(h, {
+u.handle("data:import", async (e, t) => {
+  const n = f(), s = await R.showOpenDialog(S, {
     title: "Import Data",
     properties: ["openFile"],
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
   });
   if (s.canceled || s.filePaths.length === 0) return { success: !1, message: "Canceled" };
   try {
-    const r = await H.readFile(s.filePaths[0], "utf8"), o = ze(r, t), c = JSON.parse(o);
-    if (!c.settings || !Array.isArray(c.connections))
+    const a = await W.readFile(s.filePaths[0], "utf8"), r = tt(a, t), o = JSON.parse(r);
+    if (!o.settings || !Array.isArray(o.connections))
       throw new Error("Invalid backup file format");
-    return he(n, c), { success: !0 };
-  } catch (r) {
-    return { success: !1, message: r.message };
+    return me(n, o), { success: !0 };
+  } catch (a) {
+    return { success: !1, message: a.message };
   }
 });
-a.handle("connections:list", () => pe(i()));
-a.handle("connections:get", (e, t) => R(i(), t));
-a.handle("connections:create", (e, t) => V(i(), t));
-a.handle("connections:update", (e, t, n) => $(i(), t, n));
-a.handle("connections:delete", (e, t) => ge(i(), t));
-a.handle("connections:duplicate", (e, t) => me(i(), t));
-a.handle("ssh:connect", (e, t) => {
-  const n = i(), s = R(n, t);
-  return s ? new Promise((r) => {
-    G(
+u.handle("connections:list", () => ge(f()));
+u.handle("connections:get", (e, t) => O(f(), t));
+u.handle("connections:create", (e, t) => q(f(), t));
+u.handle("connections:update", (e, t, n) => z(f(), t, n));
+u.handle("connections:delete", (e, t) => ye(f(), t));
+u.handle("connections:duplicate", (e, t) => we(f(), t));
+u.handle("ssh:connect", (e, t) => {
+  const n = f(), s = O(n, t);
+  return s ? new Promise((a) => {
+    Y(
       s,
-      (o) => {
-        ye(n, t), r({ success: !0, sessionId: o.id });
+      (r) => {
+        De(n, t), a({ success: !0, sessionId: r.id });
       },
-      (o) => {
-        r({ success: !1, message: o.message });
+      (r) => {
+        a({ success: !1, message: r.message });
       },
-      (o) => {
-        h == null || h.webContents.send("ssh:data", t, o);
+      (r) => {
+        S == null || S.webContents.send("ssh:data", t, r);
       },
       () => {
-        h == null || h.webContents.send("ssh:closed", t);
+        S == null || S.webContents.send("ssh:closed", t);
       }
     );
   }) : { success: !1, message: "Connection not found" };
 });
-a.handle("ssh:disconnect", (e, t) => {
-  O(t);
+u.handle("ssh:disconnect", (e, t) => {
+  M(t);
 });
-a.on("ssh:input", (e, t, n) => {
-  He(t, n);
+u.on("ssh:input", (e, t, n) => {
+  We(t, n);
 });
-a.on("ssh:resize", (e, t, n, s) => {
-  Ne(t, n, s);
+u.on("ssh:resize", (e, t, n, s) => {
+  Ve(t, n, s);
 });
-a.handle("ssh:test", async (e, t) => Je(t));
-a.handle("ssh:active-sessions", () => Ve());
-a.handle("workspaces:list", () => we(i()));
-a.handle("workspaces:create", (e, t) => ke(i(), t));
-a.handle("workspaces:update", (e, t, n) => _e(i(), t, n));
-a.handle("workspaces:delete", (e, t) => De(i(), t));
-a.handle("folders:list", () => J(i()));
-a.handle("folders:list-by-workspace", (e, t) => Se(i(), t));
-a.handle("folders:create", (e, t) => ve(i(), t));
-a.handle("folders:update", (e, t, n) => Ce(i(), t, n));
-a.handle("folders:delete", (e, t) => be(i(), t));
-a.handle("tags:list", () => Pe(i()));
-a.handle("tags:create", (e, t) => xe(i(), t));
-a.handle("tags:update", (e, t, n) => Ae(i(), t, n));
-a.handle("tags:delete", (e, t) => Te(i(), t));
-a.handle("settings:get", () => Ie(i()));
-a.handle("settings:update", (e, t) => Ke(i(), t));
-a.handle("ssh-keys:list", () => Ue(i()));
-a.handle("ssh-keys:create", (e, t) => Ee(i(), t));
-a.handle("ssh-keys:update", (e, t, n) => Re(i(), t, n));
-a.handle("ssh-keys:delete", (e, t) => Fe(i(), t));
-a.handle("dialog:select-file", async (e, t) => {
-  const n = await E.showOpenDialog(h, {
+u.handle("ssh:test", async (e, t) => je(t));
+u.handle("ssh:exec", async (e, t, n) => Ge(t, n));
+u.handle("ssh:analyze-log", async (e, t, n, s) => Qe(t, n, s, (a) => {
+  e.sender.send("ssh:analyze-status", a);
+}));
+u.handle("ssh:active-sessions", () => qe());
+u.handle("workspaces:list", () => Se(f()));
+u.handle("workspaces:create", (e, t) => ke(f(), t));
+u.handle("workspaces:update", (e, t, n) => _e(f(), t, n));
+u.handle("workspaces:delete", (e, t) => xe(f(), t));
+u.handle("folders:list", () => j(f()));
+u.handle("folders:list-by-workspace", (e, t) => Ce(f(), t));
+u.handle("folders:create", (e, t) => Te(f(), t));
+u.handle("folders:update", (e, t, n) => be(f(), t, n));
+u.handle("folders:delete", (e, t) => ve(f(), t));
+u.handle("tags:list", () => Ae(f()));
+u.handle("tags:create", (e, t) => Ie(f(), t));
+u.handle("tags:update", (e, t, n) => Ke(f(), t, n));
+u.handle("tags:delete", (e, t) => Ue(f(), t));
+u.handle("settings:get", () => Fe(f()));
+u.handle("settings:update", (e, t) => Ee(f(), t));
+u.handle("ssh-keys:list", () => Ne(f()));
+u.handle("ssh-keys:create", (e, t) => Pe(f(), t));
+u.handle("ssh-keys:update", (e, t, n) => Re(f(), t, n));
+u.handle("ssh-keys:delete", (e, t) => Oe(f(), t));
+u.handle("dialog:select-file", async (e, t) => {
+  const n = await R.showOpenDialog(S, {
     properties: ["openFile"],
     title: "Select SSH Private Key",
     filters: [{ name: "All Files", extensions: ["*"] }],
@@ -523,21 +702,21 @@ a.handle("dialog:select-file", async (e, t) => {
   });
   return n.canceled ? null : n.filePaths[0];
 });
-S.on("window-all-closed", () => {
-  $e(), process.platform !== "darwin" && (S.quit(), h = null);
+K.on("window-all-closed", () => {
+  ze(), process.platform !== "darwin" && (K.quit(), S = null);
 });
-S.on("activate", () => {
-  M.getAllWindows().length === 0 && Y();
+K.on("activate", () => {
+  J.getAllWindows().length === 0 && Z();
 });
-S.whenReady().then(() => {
-  Y();
+K.whenReady().then(() => {
+  Z();
   function e() {
-    F() && (q(), h && !h.isDestroyed() && h.webContents.send("app:lock-screen"));
+    L() && (G(), S && !S.isDestroyed() && S.webContents.send("app:lock-screen"));
   }
-  L.on("suspend", e), L.on("lock-screen", e);
+  $.on("suspend", e), $.on("lock-screen", e);
 });
 export {
-  rt as MAIN_DIST,
-  X as RENDERER_DIST,
-  U as VITE_DEV_SERVER_URL
+  ft as MAIN_DIST,
+  Q as RENDERER_DIST,
+  P as VITE_DEV_SERVER_URL
 };
