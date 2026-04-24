@@ -723,6 +723,113 @@ body,
   }
 }
 
+/* ── Server Status Badge ────────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-badge--checking {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--accent-amber);
+}
+
+.status-badge--online {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--accent-green);
+}
+
+.status-badge--offline {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--accent-red);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Server Stats Panel ─────────────────────────────────────── */
+.server-stats {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.stat-header .stat-value {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: 'Menlo', monospace;
+  font-weight: 600;
+}
+
+.stat-bar-wrap {
+  width: 100%;
+}
+
+.stat-bar-track {
+  width: 100%;
+  height: 3px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.stat-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.stat-footer-sep {
+  color: var(--border-strong);
+}
+
+/* Active state for Radio button when stats are shown */
+.icon-btn.active-status {
+  color: var(--accent-green);
+}
+
 /* ── Settings ───────────────────────────────────────────────── */
 .settings-panel {
   padding: 24px;
