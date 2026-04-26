@@ -1,5 +1,14 @@
 # SSHTool Release Notes
 
+## Version 1.0.3
+
+- **Nginx Log Auto-Detect (Connection Form):** Added "Auto Detect" button in the Nginx Log Files section of the Edit Connection form. Connects via SSH to automatically scan for Nginx log files and populate the list — no manual path entry needed.
+- **Nginx Log Auto-Detect (Analytics Panel):** Added "Auto Detect" button in the Nginx Analytics header to discover log files on-the-fly without requiring pre-configuration.
+- **aaPanel / BT Panel Support:** Detection now scans aaPanel's config directories (`/www/server/nginx/conf/`, `/www/server/panel/vhost/nginx/`) and log directory (`/www/wwwlogs/`) in addition to standard nginx paths.
+- **Detected File Dropdown:** Analytics panel shows a rich dropdown listing found log files with their full path and size, color-coded by type (access/error).
+
+---
+
 ## Version 1.0.0
 
 - **Initial Release:** A modern desktop SSH client.
