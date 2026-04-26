@@ -27,6 +27,7 @@ const api = {
   sshTest: (connData: any) => ipcRenderer.invoke('ssh:test', connData),
   sshExec: (connData: any, cmd: string) => ipcRenderer.invoke('ssh:exec', connData, cmd),
   sshAnalyzeLog: (connData: any, logPath: string, filters: any) => ipcRenderer.invoke('ssh:analyze-log', connData, logPath, filters),
+  sshDetectNginxLogs: (connData: any) => ipcRenderer.invoke('ssh:detect-nginx-logs', connData),
   onSshAnalyzeStatus: (callback: (status: string) => void) => {
     const handler = (_e: any, status: string) => callback(status)
     ipcRenderer.on('ssh:analyze-status', handler)

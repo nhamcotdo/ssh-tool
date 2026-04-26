@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect, useMemo } from 'react'
-import { X, RefreshCw, AlertCircle, Calendar, Filter } from 'lucide-react'
+import { X, RefreshCw, AlertCircle, Calendar, Filter, ScanSearch, FileText, ChevronDown } from 'lucide-react'
 import { parse, format, isWithinInterval, startOfDay, endOfDay, isSameDay } from 'date-fns'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell
@@ -38,6 +38,12 @@ export default function NginxAnalyticsPanel({ connection, onClose }: Props) {
   const [loadingStatus, setLoadingStatus] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Auto-detect state
+  const [detecting, setDetecting] = useState(false)
+  const [detectedFiles, setDetectedFiles] = useState<{ path: string; name: string; sizeBytes: number }[] | null>(null)
+  const [detectError, setDetectError] = useState<string | null>(null)
+  const [showDetected, setShowDetected] = useState(false)
+
   useEffect(() => {
     const unsubscribe = window.sshTool.onSshAnalyzeStatus?.((status) => {
       setLoadingStatus(status)
@@ -56,6 +62,28 @@ export default function NginxAnalyticsPanel({ connection, onClose }: Props) {
   const [filterIp, setFilterIp] = useState('')
   const [filterPath, setFilterPath] = useState('')
   const [filterReferer, setFilterReferer] = useState('')
+
+  // Auto-detect Nginx log files
+  async function handleDetect() {
+    setDetecting(true)
+    setDetectError(null)
+    setDetectedFiles(null)
+    try {
+      const files = await window.sshTool.sshDetectNginxLogs(connection)
+      setDetectedFiles(files)
+      setShowDetected(true)
+    } catch (err: any) {
+      setDetectError(err.message || 'Detection failed')
+      setShowDetected(true)
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  function handleSelectDetectedFile(path: string, name: string) {
+    setShowDetected(false)
+    setSelectedLogPath(path)
+  }
 
   // 1. Fetch Log
   async function fetchLogs() {
@@ -232,18 +260,91 @@ export default function NginxAnalyticsPanel({ connection, onClose }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-layer-0)' }}>
       {/* Header */}
       <div className="main-header titlebar-drag">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }} className="titlebar-no-drag">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }} className="titlebar-no-drag">
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 500 }}>Nginx Analytics</h2>
-          <select 
-            className="form-select" 
-            style={{ width: 200, padding: '4px 8px' }}
-            value={selectedLogPath}
-            onChange={e => setSelectedLogPath(e.target.value)}
-          >
-            {logFiles.map(file => (
-              <option key={file.id} value={file.path}>{file.name || file.path}</option>
-            ))}
-          </select>
+
+          {/* Log file selector */}
+          <div style={{ position: 'relative' }}>
+            <select 
+              className="form-select" 
+              style={{ width: 220, padding: '4px 8px', paddingRight: 28 }}
+              value={selectedLogPath}
+              onChange={e => setSelectedLogPath(e.target.value)}
+            >
+              {logFiles.map(file => (
+                <option key={file.id} value={file.path}>{file.name || file.path}</option>
+              ))}
+              {/* Detected files not in logFiles */}
+              {detectedFiles?.filter(d => !logFiles.some(l => l.path === d.path)).map(d => (
+                <option key={d.path} value={d.path}>{d.name} (detected)</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Auto Detect button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '4px 10px', background: 'var(--bg-layer-2)', border: '1px solid var(--border-strong)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-normal)' }}
+              onClick={handleDetect}
+              disabled={detecting || loading}
+              title="Auto-detect Nginx log files on server"
+            >
+              {detecting
+                ? <div style={{ width: 13, height: 13, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }} className="spin" />
+                : <ScanSearch size={13} />}
+              {detecting ? 'Detecting...' : 'Auto Detect'}
+              {detectedFiles && !detecting && <ChevronDown size={12} style={{ opacity: 0.6 }} />}
+            </button>
+
+            {/* Detected files dropdown */}
+            {showDetected && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: 4,
+                background: 'var(--bg-layer-0)', border: '1px solid var(--border-strong)',
+                borderRadius: 8, minWidth: 340, maxHeight: 280, overflowY: 'auto',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+              }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-strong)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detected Log Files</span>
+                  <button className="icon-btn" style={{ padding: 2 }} onClick={() => setShowDetected(false)}><X size={12} /></button>
+                </div>
+                {detectError && (
+                  <div style={{ padding: 12, fontSize: 13, color: 'var(--accent-red)' }}>{detectError}</div>
+                )}
+                {detectedFiles && detectedFiles.length === 0 && (
+                  <div style={{ padding: 12, fontSize: 13, color: 'var(--text-muted)' }}>No Nginx log files found on this server.</div>
+                )}
+                {detectedFiles && detectedFiles.map(file => (
+                  <button
+                    key={file.path}
+                    onClick={() => handleSelectDetectedFile(file.path, file.name)}
+                    style={{
+                      width: '100%', textAlign: 'left', background: selectedLogPath === file.path ? 'rgba(99,102,241,0.12)' : 'transparent',
+                      border: 'none', borderBottom: '1px solid var(--border-strong)', padding: '10px 12px',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                    }}
+                    onMouseEnter={e => { if (selectedLogPath !== file.path) (e.currentTarget as HTMLElement).style.background = 'var(--bg-layer-1)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = selectedLogPath === file.path ? 'rgba(99,102,241,0.12)' : 'transparent' }}
+                  >
+                    <FileText size={14} style={{ opacity: 0.5, flexShrink: 0, color: file.name.startsWith('error') ? 'var(--accent-red)' : 'var(--accent-blue)' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-normal)', fontWeight: 500 }}>{file.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.path}>{file.path}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                      {file.sizeBytes > 1024 * 1024 * 1024
+                        ? `${(file.sizeBytes / 1024 / 1024 / 1024).toFixed(1)} GB`
+                        : file.sizeBytes > 1024 * 1024
+                        ? `${(file.sizeBytes / 1024 / 1024).toFixed(1)} MB`
+                        : `${(file.sizeBytes / 1024).toFixed(0)} KB`}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button className="icon-btn" onClick={fetchLogs} disabled={loading || !selectedLogPath}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
@@ -251,10 +352,26 @@ export default function NginxAnalyticsPanel({ connection, onClose }: Props) {
         <button className="icon-btn titlebar-no-drag" onClick={onClose}><X size={18} /></button>
       </div>
 
-      {!logFiles.length ? (
+      {/* Click-outside overlay to close detected dropdown */}
+      {showDetected && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setShowDetected(false)} />
+      )}
+
+      {!logFiles.length && !selectedLogPath ? (
         <div className="empty-state">
            <AlertCircle size={48} style={{ opacity: 0.2 }} />
-           <div className="empty-text">No Nginx log files connected to this server.</div>
+           <div className="empty-text">No Nginx log files configured. Use <strong>Auto Detect</strong> to find log files on this server.</div>
+           <button
+             className="btn btn-primary"
+             style={{ marginTop: 12 }}
+             onClick={handleDetect}
+             disabled={detecting}
+           >
+             {detecting
+               ? <div style={{ width: 14, height: 14, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block' }} className="spin" />
+               : <ScanSearch size={14} />}
+             {detecting ? 'Detecting...' : 'Auto Detect Log Files'}
+           </button>
         </div>
       ) : loading ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>

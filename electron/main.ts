@@ -244,6 +244,10 @@ ipcMain.handle('ssh:analyze-log', async (event, connData: SSHConnection, logPath
   })
 })
 
+ipcMain.handle('ssh:detect-nginx-logs', async (_e, connData: SSHConnection) => {
+  return sshManager.detectNginxLogFiles(connData)
+})
+
 ipcMain.handle('ssh:active-sessions', () => sshManager.getActiveSessions())
 
 // ── IPC: Workspaces ───────────────────────────────────────────

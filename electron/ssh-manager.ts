@@ -306,6 +306,97 @@ export async function execCommand(conn: SSHConnection, command: string): Promise
   })
 }
 
+export interface DetectedLogFile {
+  path: string
+  name: string
+  sizeBytes: number
+}
+
+export async function detectNginxLogFiles(conn: SSHConnection): Promise<DetectedLogFile[]> {
+  // Commands to find nginx log files in common locations (standard + aaPanel/BT Panel)
+  const command = `
+    set -o pipefail 2>/dev/null || true
+
+    # 1. Check nginx config for log paths (standard + aaPanel/BT Panel)
+    config_logs=$(
+      (nginx -T 2>/dev/null || cat \
+        /etc/nginx/nginx.conf \
+        /etc/nginx/conf.d/*.conf \
+        /etc/nginx/sites-enabled/* \
+        /www/server/nginx/conf/nginx.conf \
+        /www/server/nginx/conf/vhost/*.conf \
+        /www/server/panel/vhost/nginx/*.conf \
+        2>/dev/null) \
+      | grep -E 'access_log|error_log' \
+      | grep -v '#' \
+      | grep -oE '/[^ ;]+\\.log' \
+      | sort -u
+    ) 2>/dev/null
+
+    # 2. Known default paths (standard + aaPanel /www/wwwlogs)
+    default_paths=(
+      /var/log/nginx/access.log
+      /var/log/nginx/error.log
+      /var/log/nginx/access.log.1
+      /usr/local/nginx/logs/access.log
+      /usr/local/nginx/logs/error.log
+      /opt/nginx/logs/access.log
+      /www/wwwlogs/access.log
+      /www/wwwlogs/nginx_error.log
+      /home/*/logs/nginx/access.log
+      /home/*/logs/access.log
+    )
+
+    # Combine and deduplicate all candidates
+    all_candidates="$config_logs"$'\\n'"$(printf '%s\\n' "\${default_paths[@]}")"
+
+    # Also find any *.log under common nginx log dirs (including aaPanel)
+    extra=$(find /var/log/nginx /usr/local/nginx/logs /opt/nginx/logs /www/wwwlogs -name "*.log" -type f 2>/dev/null)
+    all_candidates="$all_candidates"$'\\n'"$extra"
+
+    # Output stat info for each existing file
+    echo "$all_candidates" | sort -u | while IFS= read -r p; do
+      [ -z "$p" ] && continue
+      if [ -f "$p" ] && [ -r "$p" ]; then
+        size=$(stat -c%s "$p" 2>/dev/null || stat -f%z "$p" 2>/dev/null || echo 0)
+        echo "$size $p"
+      fi
+    done
+  `.trim()
+
+  const output = await execCommand(conn, `bash -c '${command.replace(/'/g, "'\\''")}'`)
+
+  const results: DetectedLogFile[] = []
+  const seen = new Set<string>()
+
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const spaceIdx = trimmed.indexOf(' ')
+    if (spaceIdx === -1) continue
+    const sizeStr = trimmed.substring(0, spaceIdx)
+    const filePath = trimmed.substring(spaceIdx + 1).trim()
+    if (!filePath || seen.has(filePath)) continue
+    seen.add(filePath)
+    const sizeBytes = parseInt(sizeStr, 10) || 0
+    results.push({
+      path: filePath,
+      name: filePath.split('/').pop() || filePath,
+      sizeBytes,
+    })
+  }
+
+  // Sort: access logs first, then error logs, by path
+  results.sort((a, b) => {
+    const aIsAccess = a.name.startsWith('access') ? 0 : 1
+    const bIsAccess = b.name.startsWith('access') ? 0 : 1
+    if (aIsAccess !== bIsAccess) return aIsAccess - bIsAccess
+    return a.path.localeCompare(b.path)
+  })
+
+  return results
+}
+
 const NGINX_REGEX = /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([^"]*)"\s+(\d+)\s+(\d+|-)\s+"([^"]*)"\s+"([^"]*)"/
 
 interface NginxLogFilters {

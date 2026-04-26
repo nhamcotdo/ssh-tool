@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { X, FolderOpen, Zap, Plus, Trash2 } from 'lucide-react'
+import { X, FolderOpen, Zap, Plus, Trash2, ScanSearch } from 'lucide-react'
 import type { SSHConnection, SSHKey, Workspace, Folder, Tag, ProxyJumpConfig } from '../types'
 import { TAG_COLORS } from '../lib/utils'
 
@@ -54,6 +54,8 @@ export default function ConnectionForm({
     const [notes, setNotes] = useState('')
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+    const [detecting, setDetecting] = useState(false)
+    const [detectResult, setDetectResult] = useState<string | null>(null)
 
     useEffect(() => {
         if (connection) {
@@ -107,6 +109,33 @@ export default function ConnectionForm({
         const result = await onTest(data)
         setTestResult(result as any)
         setTesting(false)
+    }
+
+    async function handleDetectLogs() {
+        if (!host) return
+        setDetecting(true)
+        setDetectResult(null)
+        try {
+            const connData = buildConnectionData()
+            const files = await window.sshTool.sshDetectNginxLogs(connData as any)
+            if (files.length === 0) {
+                setDetectResult('No Nginx log files found on server.')
+            } else {
+                // Merge detected files, skip duplicates
+                setLogFiles(prev => {
+                    const existingPaths = new Set(prev.map(f => f.path))
+                    const newFiles = files
+                        .filter((f: any) => !existingPaths.has(f.path))
+                        .map((f: any) => ({ id: crypto.randomUUID(), name: f.name, path: f.path }))
+                    return [...prev, ...newFiles]
+                })
+                setDetectResult(`Found ${files.length} log file(s).`)
+            }
+        } catch (err: any) {
+            setDetectResult(`Detection failed: ${err.message}`)
+        } finally {
+            setDetecting(false)
+        }
     }
 
     function toggleTag(tagId: string) {
@@ -514,13 +543,27 @@ export default function ConnectionForm({
                         <label className="form-label">
                             <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 Nginx Log Files to Analyze
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setLogFiles(prev => [...prev, { id: crypto.randomUUID(), name: '', path: '' }])}
-                                    style={{ padding: '4px 8px', fontSize: 11 }}
-                                >
-                                    <Plus size={12} /> Add
-                                </button>
+                                <span style={{ display: 'flex', gap: 6 }}>
+                                    <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={handleDetectLogs}
+                                        disabled={detecting || !host}
+                                        style={{ padding: '4px 8px', fontSize: 11 }}
+                                        title={!host ? 'Enter a host first' : 'Auto-detect Nginx log files via SSH'}
+                                    >
+                                        {detecting
+                                            ? <div style={{ width: 11, height: 11, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block' }} className="spin" />
+                                            : <ScanSearch size={12} />}
+                                        {detecting ? 'Detecting...' : 'Auto Detect'}
+                                    </button>
+                                    <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setLogFiles(prev => [...prev, { id: crypto.randomUUID(), name: '', path: '' }])}
+                                        style={{ padding: '4px 8px', fontSize: 11 }}
+                                    >
+                                        <Plus size={12} /> Add
+                                    </button>
+                                </span>
                             </span>
                         </label>
                         {logFiles.length === 0 ? (
@@ -560,6 +603,11 @@ export default function ConnectionForm({
                                         </button>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                        {detectResult && (
+                            <div style={{ fontSize: 12, marginTop: 6, color: detectResult.startsWith('Detection failed') ? 'var(--accent-red)' : 'var(--accent-green)' }}>
+                                {detectResult}
                             </div>
                         )}
                     </div>
