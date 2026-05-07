@@ -2,6 +2,18 @@
 // SSH Tool - Core Type Definitions
 // ============================================================
 
+// A single resolved hop (no nesting, used internally for tunnel building)
+export interface JumpHostConfig {
+  host: string
+  port: number
+  username: string
+  authType: 'password' | 'key'
+  password?: string
+  privateKeyPath?: string
+}
+
+// Stored per-connection: just the DIRECT jump host.
+// Chain is resolved automatically at connect time by following sourceConnectionId links.
 export interface ProxyJumpConfig {
   enabled: boolean
   host: string
@@ -10,6 +22,8 @@ export interface ProxyJumpConfig {
   authType: 'password' | 'key'
   password?: string
   privateKeyPath?: string
+  // If set, this jump host is a saved connection — used to auto-follow ITS chain too
+  sourceConnectionId?: string
 }
 
 export interface SSHConnection {

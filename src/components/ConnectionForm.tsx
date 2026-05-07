@@ -21,23 +21,31 @@ interface ConnectionFormProps {
     onTest: (data: any) => void
 }
 
-const defaultProxy: ProxyJumpConfig = {
-    enabled: false,
-    host: '',
-    port: 22,
-    username: 'root',
-    authType: 'password',
-    password: '',
-    privateKeyPath: '',
+const defaultProxy: ProxyJumpConfig = { enabled: false, host: '', port: 22, username: 'root', authType: 'password', password: '', privateKeyPath: '' }
+
+// Build display chain for preview (follows sourceConnectionId links)
+function previewChain(pj: ProxyJumpConfig, allConns: SSHConnection[], visited = new Set<string>()): string[] {
+    if (!pj.enabled) return []
+    if (pj.sourceConnectionId && !visited.has(pj.sourceConnectionId)) {
+        visited.add(pj.sourceConnectionId)
+        const src = allConns.find(c => c.id === pj.sourceConnectionId)
+        if (src?.proxyJump?.enabled) {
+            return [...previewChain(src.proxyJump as ProxyJumpConfig, allConns, visited), pj.host || '?']
+        }
+    }
+    return [pj.host || '?']
 }
+
 
 export default function ConnectionForm({
     connection, connections, workspaces, folders, tags, sshKeys,
     initialWorkspaceId, initialFolderId,
     onSave, onCancel, onTest,
 }: ConnectionFormProps) {
-    const [proxySource, setProxySource] = useState<'manual' | string>('manual') // 'manual' or connectionId
-    const [keySource, setKeySource] = useState<'manual' | string>('manual') // 'manual' or sshKeyId
+    const [proxyEnabled, setProxyEnabled] = useState(false)
+    const [proxyJump, setProxyJump] = useState<ProxyJumpConfig>({ ...defaultProxy })
+    const [proxySource, setProxySource] = useState<'manual' | string>('manual')
+    const [keySource, setKeySource] = useState<'manual' | string>('manual')
     const [name, setName] = useState('')
     const [host, setHost] = useState('')
     const [port, setPort] = useState(22)
@@ -46,7 +54,6 @@ export default function ConnectionForm({
     const [password, setPassword] = useState('')
     const [privateKeyPath, setPrivateKeyPath] = useState('')
     const [passphrase, setPassphrase] = useState('')
-    const [proxyJump, setProxyJump] = useState<ProxyJumpConfig>(defaultProxy)
     const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId || 'default')
     const [folderId, setFolderId] = useState<string | undefined>(initialFolderId)
     const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -67,7 +74,19 @@ export default function ConnectionForm({
             setPassword(connection.password || '')
             setPrivateKeyPath(connection.privateKeyPath || '')
             setPassphrase(connection.passphrase || '')
-            setProxyJump(connection.proxyJump || defaultProxy)
+            const pj = connection.proxyJump as any
+            setProxyEnabled(pj?.enabled || false)
+            setProxySource(pj?.sourceConnectionId || 'manual')
+            setProxyJump(pj?.enabled ? {
+                enabled: true,
+                host: pj.host || '',
+                port: pj.port || 22,
+                username: pj.username || 'root',
+                authType: pj.authType || 'password',
+                password: pj.password || '',
+                privateKeyPath: pj.privateKeyPath || '',
+                sourceConnectionId: pj.sourceConnectionId,
+            } : { ...defaultProxy })
             setWorkspaceId(connection.workspaceId)
             setFolderId(connection.folderId)
             setSelectedTags(connection.tags)
@@ -91,7 +110,7 @@ export default function ConnectionForm({
             password: authType === 'password' ? password : undefined,
             privateKeyPath: authType !== 'password' ? privateKeyPath : undefined,
             passphrase: authType === 'key+passphrase' ? passphrase : undefined,
-            proxyJump: proxyJump.enabled ? proxyJump : { ...defaultProxy, enabled: false },
+            proxyJump: proxyEnabled ? { ...proxyJump, enabled: true } : { ...defaultProxy, enabled: false },
             workspaceId, folderId, tags: selectedTags, logFiles, notes,
         }
     }
@@ -308,66 +327,77 @@ export default function ConnectionForm({
                         <label className="form-checkbox">
                             <input
                                 type="checkbox"
-                                checked={proxyJump.enabled}
-                                onChange={e => setProxyJump(p => ({ ...p, enabled: e.target.checked }))}
+                                checked={proxyEnabled}
+                                onChange={e => setProxyEnabled(e.target.checked)}
                             />
                             Enable ProxyJump (Jump Host)
                         </label>
                     </div>
 
-                    {proxyJump.enabled && (
+                    {proxyEnabled && (
                         <div className="proxy-section">
                             <div className="proxy-header">
-                                <span className="proxy-title">⚡ Jump Host Configuration</span>
+                                <span className="proxy-title">⚡ Jump Host</span>
+                                {/* Live chain preview */}
+                                {(() => {
+                                    const chain = previewChain(proxyJump, connections)
+                                    return chain.length > 0 ? (
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                            {chain.join(' → ')} → <em>this server</em>
+                                        </span>
+                                    ) : null
+                                })()}
                             </div>
 
-                            {/* Select from existing connection */}
+                            {/* Select from existing connection — chain resolved automatically */}
                             <div className="form-group">
-                                <label className="form-label">Jump Host Source</label>
+                                <label className="form-label">Jump via saved connection</label>
                                 <select
                                     className="form-select"
                                     value={proxySource}
                                     onChange={e => {
                                         const val = e.target.value
                                         setProxySource(val)
-                                        if (val !== 'manual') {
-                                            // Auto-fill from existing connection
+                                        if (val === 'manual') {
+                                            setProxyJump(p => ({ ...p, sourceConnectionId: undefined }))
+                                        } else {
                                             const src = connections.find(c => c.id === val)
                                             if (src) {
-                                                setProxyJump(p => ({
-                                                    ...p,
+                                                setProxyJump({
+                                                    enabled: true,
                                                     host: src.host,
                                                     port: src.port,
                                                     username: src.username,
                                                     authType: src.authType === 'password' ? 'password' : 'key',
                                                     password: src.password || '',
                                                     privateKeyPath: src.privateKeyPath || '',
-                                                }))
+                                                    sourceConnectionId: src.id,
+                                                })
                                             }
                                         }
                                     }}
                                 >
                                     <option value="manual">✏️ Enter manually</option>
                                     {connections
-                                        .filter(c => c.id !== connection?.id) // exclude self
+                                        .filter(c => c.id !== connection?.id)
                                         .map(c => (
                                             <option key={c.id} value={c.id}>
                                                 🖥️ {c.name} ({c.username}@{c.host}:{c.port})
+                                                {(c.proxyJump as any)?.enabled ? ' ⛓' : ''}
                                             </option>
                                         ))
                                     }
                                 </select>
+                                {proxySource !== 'manual' && (() => {
+                                    const src = connections.find(c => c.id === proxySource)
+                                    const chain = src ? previewChain(src.proxyJump as ProxyJumpConfig, connections) : []
+                                    return chain.length > 0 ? (
+                                        <div style={{ fontSize: 11, color: '#eab308', marginTop: 4 }}>
+                                            ⛓ Auto-chain: {[...chain, src?.host || ''].filter(Boolean).join(' → ')} → this server
+                                        </div>
+                                    ) : null
+                                })()}
                             </div>
-
-                            {proxySource !== 'manual' && (
-                                <div style={{
-                                    padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                                    fontSize: 12, background: 'rgba(59, 130, 246, 0.1)',
-                                    color: 'var(--accent-blue)', marginBottom: 12,
-                                }}>
-                                    Using <strong>{connections.find(c => c.id === proxySource)?.name}</strong> as jump host
-                                </div>
-                            )}
 
                             <div className="form-row">
                                 <div className="form-group">

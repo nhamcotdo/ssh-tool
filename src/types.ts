@@ -12,6 +12,15 @@ export interface UserAccount {
   username: string
 }
 
+export interface JumpHostConfig {
+  host: string
+  port: number
+  username: string
+  authType: 'password' | 'key'
+  password?: string
+  privateKeyPath?: string
+}
+
 export interface ProxyJumpConfig {
   enabled: boolean
   host: string
@@ -20,6 +29,8 @@ export interface ProxyJumpConfig {
   authType: 'password' | 'key'
   password?: string
   privateKeyPath?: string
+  // If set, this jump host is a saved connection — chain resolved automatically at connect time
+  sourceConnectionId?: string
 }
 
 export interface SSHConnection {

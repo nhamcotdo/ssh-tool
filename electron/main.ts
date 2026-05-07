@@ -197,10 +197,12 @@ ipcMain.handle('ssh:connect', (_e, connectionId: string) => {
   const userId = requireUserId()
   const conn = store.getConnectionById(userId, connectionId)
   if (!conn) return { success: false, message: 'Connection not found' }
+  const allConns = store.getConnections(userId)
 
   return new Promise((resolve) => {
     sshManager.connect(
       conn,
+      allConns,
       (session) => {
         store.touchConnection(userId, connectionId)
         resolve({ success: true, sessionId: session.id })
@@ -231,21 +233,29 @@ ipcMain.on('ssh:resize', (_e, sessionId: string, cols: number, rows: number) => 
 })
 
 ipcMain.handle('ssh:test', async (_e, connData: SSHConnection) => {
-  return sshManager.testConnection(connData)
+  const userId = requireUserId()
+  const allConns = store.getConnections(userId)
+  return sshManager.testConnection(connData, allConns)
 })
 
 ipcMain.handle('ssh:exec', async (_e, connData: SSHConnection, command: string) => {
-  return sshManager.execCommand(connData, command)
+  const userId = requireUserId()
+  const allConns = store.getConnections(userId)
+  return sshManager.execCommand(connData, command, allConns)
 })
 
 ipcMain.handle('ssh:analyze-log', async (event, connData: SSHConnection, logPath: string, filters: any) => {
+  const userId = requireUserId()
+  const allConns = store.getConnections(userId)
   return sshManager.downloadAndParseLog(connData, logPath, filters, (status) => {
     event.sender.send('ssh:analyze-status', status)
-  })
+  }, allConns)
 })
 
 ipcMain.handle('ssh:detect-nginx-logs', async (_e, connData: SSHConnection) => {
-  return sshManager.detectNginxLogFiles(connData)
+  const userId = requireUserId()
+  const allConns = store.getConnections(userId)
+  return sshManager.detectNginxLogFiles(connData, allConns)
 })
 
 ipcMain.handle('ssh:active-sessions', () => sshManager.getActiveSessions())
