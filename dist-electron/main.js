@@ -1,591 +1,427 @@
-import { ipcMain, app, dialog, BrowserWindow, powerMonitor } from "electron";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import crypto, { randomFillSync, randomUUID, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import fs from "node:fs/promises";
-import Store from "electron-store";
-import { Client } from "ssh2";
-import { readFileSync } from "node:fs";
-import readline from "node:readline";
-const byteToHex = [];
-for (let i = 0; i < 256; ++i) {
-  byteToHex.push((i + 256).toString(16).slice(1));
+import { ipcMain as u, app as A, dialog as O, BrowserWindow as z, powerMonitor as J } from "electron";
+import { createRequire as oe } from "node:module";
+import { fileURLToPath as ae } from "node:url";
+import S from "node:path";
+import C, { randomFillSync as ce, randomUUID as ie, randomBytes as le, scryptSync as V, timingSafeEqual as ue } from "node:crypto";
+import q from "node:fs/promises";
+import j from "electron-store";
+import { Client as b } from "ssh2";
+import { readFileSync as N } from "node:fs";
+import de from "node:readline";
+const w = [];
+for (let e = 0; e < 256; ++e)
+  w.push((e + 256).toString(16).slice(1));
+function fe(e, t = 0) {
+  return (w[e[t + 0]] + w[e[t + 1]] + w[e[t + 2]] + w[e[t + 3]] + "-" + w[e[t + 4]] + w[e[t + 5]] + "-" + w[e[t + 6]] + w[e[t + 7]] + "-" + w[e[t + 8]] + w[e[t + 9]] + "-" + w[e[t + 10]] + w[e[t + 11]] + w[e[t + 12]] + w[e[t + 13]] + w[e[t + 14]] + w[e[t + 15]]).toLowerCase();
 }
-function unsafeStringify(arr, offset = 0) {
-  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
+const P = new Uint8Array(256);
+let $ = P.length;
+function he() {
+  return $ > P.length - 16 && (ce(P), $ = 0), P.slice($, $ += 16);
 }
-const rnds8Pool = new Uint8Array(256);
-let poolPtr = rnds8Pool.length;
-function rng() {
-  if (poolPtr > rnds8Pool.length - 16) {
-    randomFillSync(rnds8Pool);
-    poolPtr = 0;
-  }
-  return rnds8Pool.slice(poolPtr, poolPtr += 16);
-}
-const native = { randomUUID };
-function _v4(options, buf, offset) {
-  var _a;
-  options = options || {};
-  const rnds = options.random ?? ((_a = options.rng) == null ? void 0 : _a.call(options)) ?? rng();
-  if (rnds.length < 16) {
+const W = { randomUUID: ie };
+function pe(e, t, n) {
+  var r;
+  e = e || {};
+  const s = e.random ?? ((r = e.rng) == null ? void 0 : r.call(e)) ?? he();
+  if (s.length < 16)
     throw new Error("Random bytes length must be >= 16");
-  }
-  rnds[6] = rnds[6] & 15 | 64;
-  rnds[8] = rnds[8] & 63 | 128;
-  return unsafeStringify(rnds);
+  return s[6] = s[6] & 15 | 64, s[8] = s[8] & 63 | 128, fe(s);
 }
-function v4(options, buf, offset) {
-  if (native.randomUUID && true && !options) {
-    return native.randomUUID();
-  }
-  return _v4(options);
+function E(e, t, n) {
+  return W.randomUUID && !e ? W.randomUUID() : pe(e);
 }
-const DEFAULT_SETTINGS = {
+const ge = {
   terminalFontSize: 14,
   terminalFontFamily: 'Menlo, Monaco, "Courier New", monospace',
   defaultPort: 22,
   defaultUsername: "root"
-};
-const DEFAULT_WORKSPACE = {
+}, me = {
   id: "default",
   name: "All Connections",
   icon: "🏠",
   color: "#3b82f6",
   order: 0,
   createdAt: Date.now()
-};
-const store = new Store({
+}, K = new j({
   defaults: {
     userData: {}
   }
 });
-function getUserData(userId) {
-  const all = store.get("userData");
-  if (!all[userId]) {
-    const data = {
+function g(e) {
+  const t = K.get("userData");
+  if (!t[e]) {
+    const n = {
       connections: [],
-      workspaces: [{ ...DEFAULT_WORKSPACE, createdAt: Date.now() }],
+      workspaces: [{ ...me, createdAt: Date.now() }],
       folders: [],
       tags: [],
       sshKeys: [],
-      settings: { ...DEFAULT_SETTINGS }
+      settings: { ...ge }
     };
-    all[userId] = data;
-    store.set("userData", all);
+    t[e] = n, K.set("userData", t);
   }
-  return all[userId];
+  return t[e];
 }
-function setUserData(userId, data) {
-  const all = store.get("userData");
-  all[userId] = data;
-  store.set("userData", all);
+function y(e, t) {
+  const n = K.get("userData");
+  n[e] = t, K.set("userData", n);
 }
-function getUserDataRaw(userId) {
-  return getUserData(userId);
+function we(e) {
+  return g(e);
 }
-function setUserDataRaw(userId, data) {
-  setUserData(userId, data);
+function ye(e, t) {
+  y(e, t);
 }
-function getConnections(userId) {
-  return getUserData(userId).connections;
+function T(e) {
+  return g(e).connections;
 }
-function getConnectionById(userId, id) {
-  return getUserData(userId).connections.find((c) => c.id === id);
+function L(e, t) {
+  return g(e).connections.find((n) => n.id === t);
 }
-function createConnection(userId, data) {
-  const now = Date.now();
-  const connection = {
-    ...data,
-    id: v4(),
-    createdAt: now,
-    updatedAt: now
-  };
-  const ud = getUserData(userId);
-  ud.connections.push(connection);
-  setUserData(userId, ud);
-  return connection;
+function G(e, t) {
+  const n = Date.now(), s = {
+    ...t,
+    id: E(),
+    createdAt: n,
+    updatedAt: n
+  }, r = g(e);
+  return r.connections.push(s), y(e, r), s;
 }
-function updateConnection(userId, id, data) {
-  const ud = getUserData(userId);
-  const index = ud.connections.findIndex((c) => c.id === id);
-  if (index === -1) return null;
-  ud.connections[index] = { ...ud.connections[index], ...data, updatedAt: Date.now() };
-  setUserData(userId, ud);
-  return ud.connections[index];
+function Y(e, t, n) {
+  const s = g(e), r = s.connections.findIndex((o) => o.id === t);
+  return r === -1 ? null : (s.connections[r] = { ...s.connections[r], ...n, updatedAt: Date.now() }, y(e, s), s.connections[r]);
 }
-function deleteConnection(userId, id) {
-  const ud = getUserData(userId);
-  const len = ud.connections.length;
-  ud.connections = ud.connections.filter((c) => c.id !== id);
-  if (ud.connections.length === len) return false;
-  setUserData(userId, ud);
-  return true;
+function De(e, t) {
+  const n = g(e), s = n.connections.length;
+  return n.connections = n.connections.filter((r) => r.id !== t), n.connections.length === s ? !1 : (y(e, n), !0);
 }
-function duplicateConnection(userId, id) {
-  const conn = getConnectionById(userId, id);
-  if (!conn) return null;
-  const { id: _id, createdAt: _c, updatedAt: _u, ...data } = conn;
-  return createConnection(userId, { ...data, name: `${conn.name} (copy)` });
+function xe(e, t) {
+  const n = L(e, t);
+  if (!n) return null;
+  const { id: s, createdAt: r, updatedAt: o, ...a } = n;
+  return G(e, { ...a, name: `${n.name} (copy)` });
 }
-function touchConnection(userId, id) {
-  updateConnection(userId, id, { lastConnected: Date.now() });
+function _e(e, t) {
+  Y(e, t, { lastConnected: Date.now() });
 }
-function getWorkspaces(userId) {
-  return getUserData(userId).workspaces.sort((a, b) => a.order - b.order);
+function Se(e) {
+  return g(e).workspaces.sort((t, n) => t.order - n.order);
 }
-function createWorkspace(userId, data) {
-  const ud = getUserData(userId);
-  const workspace = {
-    ...data,
-    id: v4(),
-    order: ud.workspaces.length,
+function ke(e, t) {
+  const n = g(e), s = {
+    ...t,
+    id: E(),
+    order: n.workspaces.length,
     createdAt: Date.now()
   };
-  ud.workspaces.push(workspace);
-  setUserData(userId, ud);
-  return workspace;
+  return n.workspaces.push(s), y(e, n), s;
 }
-function updateWorkspace(userId, id, data) {
-  const ud = getUserData(userId);
-  const index = ud.workspaces.findIndex((w) => w.id === id);
-  if (index === -1) return null;
-  ud.workspaces[index] = { ...ud.workspaces[index], ...data };
-  setUserData(userId, ud);
-  return ud.workspaces[index];
+function ve(e, t, n) {
+  const s = g(e), r = s.workspaces.findIndex((o) => o.id === t);
+  return r === -1 ? null : (s.workspaces[r] = { ...s.workspaces[r], ...n }, y(e, s), s.workspaces[r]);
 }
-function deleteWorkspace(userId, id) {
-  if (id === "default") return false;
-  const ud = getUserData(userId);
-  ud.workspaces = ud.workspaces.filter((w) => w.id !== id);
-  ud.connections.forEach((c) => {
-    if (c.workspaceId === id) c.workspaceId = "default";
-  });
-  setUserData(userId, ud);
-  return true;
+function be(e, t) {
+  if (t === "default") return !1;
+  const n = g(e);
+  return n.workspaces = n.workspaces.filter((s) => s.id !== t), n.connections.forEach((s) => {
+    s.workspaceId === t && (s.workspaceId = "default");
+  }), y(e, n), !0;
 }
-function getFolders(userId) {
-  return getUserData(userId).folders.sort((a, b) => a.order - b.order);
+function X(e) {
+  return g(e).folders.sort((t, n) => t.order - n.order);
 }
-function getFoldersByWorkspace(userId, workspaceId) {
-  return getFolders(userId).filter((f) => f.workspaceId === workspaceId);
+function Ce(e, t) {
+  return X(e).filter((n) => n.workspaceId === t);
 }
-function createFolder(userId, data) {
-  const ud = getUserData(userId);
-  const folder = {
-    ...data,
-    id: v4(),
-    parentId: data.parentId || void 0,
-    order: ud.folders.filter((f) => f.workspaceId === data.workspaceId).length,
+function Ie(e, t) {
+  const n = g(e), s = {
+    ...t,
+    id: E(),
+    parentId: t.parentId || void 0,
+    order: n.folders.filter((r) => r.workspaceId === t.workspaceId).length,
     createdAt: Date.now()
   };
-  ud.folders.push(folder);
-  setUserData(userId, ud);
-  return folder;
+  return n.folders.push(s), y(e, n), s;
 }
-function updateFolder(userId, id, data) {
-  const ud = getUserData(userId);
-  const idx = ud.folders.findIndex((f) => f.id === id);
-  if (idx === -1) return null;
-  ud.folders[idx] = { ...ud.folders[idx], ...data };
-  setUserData(userId, ud);
-  return ud.folders[idx];
+function Ee(e, t, n) {
+  const s = g(e), r = s.folders.findIndex((o) => o.id === t);
+  return r === -1 ? null : (s.folders[r] = { ...s.folders[r], ...n }, y(e, s), s.folders[r]);
 }
-function deleteFolder(userId, id) {
-  const ud = getUserData(userId);
-  const toDelete = /* @__PURE__ */ new Set();
-  function collectChildren(parentId) {
-    toDelete.add(parentId);
-    ud.folders.filter((f) => f.parentId === parentId).forEach((f) => collectChildren(f.id));
+function Te(e, t) {
+  const n = g(e), s = /* @__PURE__ */ new Set();
+  function r(o) {
+    s.add(o), n.folders.filter((a) => a.parentId === o).forEach((a) => r(a.id));
   }
-  collectChildren(id);
-  ud.folders = ud.folders.filter((f) => !toDelete.has(f.id));
-  ud.connections.forEach((c) => {
-    if (c.folderId && toDelete.has(c.folderId)) {
-      c.folderId = void 0;
-    }
-  });
-  setUserData(userId, ud);
-  return true;
+  return r(t), n.folders = n.folders.filter((o) => !s.has(o.id)), n.connections.forEach((o) => {
+    o.folderId && s.has(o.folderId) && (o.folderId = void 0);
+  }), y(e, n), !0;
 }
-function getTags(userId) {
-  return getUserData(userId).tags;
+function Ae(e) {
+  return g(e).tags;
 }
-function createTag(userId, data) {
-  const tag = { ...data, id: v4() };
-  const ud = getUserData(userId);
-  ud.tags.push(tag);
-  setUserData(userId, ud);
-  return tag;
+function $e(e, t) {
+  const n = { ...t, id: E() }, s = g(e);
+  return s.tags.push(n), y(e, s), n;
 }
-function updateTag(userId, id, data) {
-  const ud = getUserData(userId);
-  const idx = ud.tags.findIndex((t) => t.id === id);
-  if (idx === -1) return null;
-  ud.tags[idx] = { ...ud.tags[idx], ...data };
-  setUserData(userId, ud);
-  return ud.tags[idx];
+function Pe(e, t, n) {
+  const s = g(e), r = s.tags.findIndex((o) => o.id === t);
+  return r === -1 ? null : (s.tags[r] = { ...s.tags[r], ...n }, y(e, s), s.tags[r]);
 }
-function deleteTag(userId, id) {
-  const ud = getUserData(userId);
-  ud.tags = ud.tags.filter((t) => t.id !== id);
-  ud.connections.forEach((c) => {
-    c.tags = c.tags.filter((t) => t !== id);
-  });
-  setUserData(userId, ud);
-  return true;
+function Ke(e, t) {
+  const n = g(e);
+  return n.tags = n.tags.filter((s) => s.id !== t), n.connections.forEach((s) => {
+    s.tags = s.tags.filter((r) => r !== t);
+  }), y(e, n), !0;
 }
-function getSettings(userId) {
-  return getUserData(userId).settings;
+function Fe(e) {
+  return g(e).settings;
 }
-function updateSettings(userId, data) {
-  const ud = getUserData(userId);
-  ud.settings = { ...ud.settings, ...data };
-  setUserData(userId, ud);
-  return ud.settings;
+function Ue(e, t) {
+  const n = g(e);
+  return n.settings = { ...n.settings, ...t }, y(e, n), n.settings;
 }
-function getSSHKeys(userId) {
-  return getUserData(userId).sshKeys || [];
+function Ne(e) {
+  return g(e).sshKeys || [];
 }
-function createSSHKey(userId, data) {
-  const key = {
-    ...data,
-    id: v4(),
+function Re(e, t) {
+  const n = {
+    ...t,
+    id: E(),
     createdAt: Date.now()
-  };
-  const ud = getUserData(userId);
-  if (!ud.sshKeys) ud.sshKeys = [];
-  ud.sshKeys.push(key);
-  setUserData(userId, ud);
-  return key;
+  }, s = g(e);
+  return s.sshKeys || (s.sshKeys = []), s.sshKeys.push(n), y(e, s), n;
 }
-function updateSSHKey(userId, id, data) {
-  const ud = getUserData(userId);
-  if (!ud.sshKeys) return null;
-  const idx = ud.sshKeys.findIndex((k) => k.id === id);
-  if (idx === -1) return null;
-  ud.sshKeys[idx] = { ...ud.sshKeys[idx], ...data };
-  setUserData(userId, ud);
-  return ud.sshKeys[idx];
+function Oe(e, t, n) {
+  const s = g(e);
+  if (!s.sshKeys) return null;
+  const r = s.sshKeys.findIndex((o) => o.id === t);
+  return r === -1 ? null : (s.sshKeys[r] = { ...s.sshKeys[r], ...n }, y(e, s), s.sshKeys[r]);
 }
-function deleteSSHKey(userId, id) {
-  const ud = getUserData(userId);
-  if (!ud.sshKeys) return false;
-  const filtered = ud.sshKeys.filter((k) => k.id !== id);
-  if (filtered.length === ud.sshKeys.length) return false;
-  ud.sshKeys = filtered;
-  setUserData(userId, ud);
-  return true;
+function Le(e, t) {
+  const n = g(e);
+  if (!n.sshKeys) return !1;
+  const s = n.sshKeys.filter((r) => r.id !== t);
+  return s.length === n.sshKeys.length ? !1 : (n.sshKeys = s, y(e, n), !0);
 }
-const authStore = new Store({
+const k = new j({
   name: "auth",
   defaults: {
     users: [],
     currentUserId: null
   }
 });
-function hashPassword(password, salt) {
-  return scryptSync(password, salt, 64).toString("hex");
+function Be(e, t) {
+  return V(e, t, 64).toString("hex");
 }
-function verifyPassword(password, salt, hash) {
-  const hashBuffer = Buffer.from(hash, "hex");
-  const derivedKey = scryptSync(password, salt, 64);
-  return timingSafeEqual(hashBuffer, derivedKey);
+function Me(e, t, n) {
+  const s = Buffer.from(n, "hex"), r = V(e, t, 64);
+  return ue(s, r);
 }
-function getCurrentUser() {
-  const userId = authStore.get("currentUserId");
-  if (!userId) return null;
-  const user = authStore.get("users").find((u) => u.id === userId);
-  if (!user) return null;
-  return { id: user.id, username: user.username };
+function B() {
+  const e = k.get("currentUserId");
+  if (!e) return null;
+  const t = k.get("users").find((n) => n.id === e);
+  return t ? { id: t.id, username: t.username } : null;
 }
-function register(username, password) {
-  const users = authStore.get("users");
-  if (users.find((u) => u.username.toLowerCase() === username.toLowerCase())) {
-    return { success: false, message: "Username already exists" };
-  }
-  if (!username || username.length < 2) {
-    return { success: false, message: "Username must be at least 2 characters" };
-  }
-  if (!password || password.length < 4) {
-    return { success: false, message: "Password must be at least 4 characters" };
-  }
-  const salt = randomBytes(16).toString("hex");
-  const passwordHash = hashPassword(password, salt);
-  const user = {
-    id: v4(),
-    username,
-    passwordHash,
-    salt,
+function He(e, t) {
+  const n = k.get("users");
+  if (n.find((a) => a.username.toLowerCase() === e.toLowerCase()))
+    return { success: !1, message: "Username already exists" };
+  if (!e || e.length < 2)
+    return { success: !1, message: "Username must be at least 2 characters" };
+  if (!t || t.length < 4)
+    return { success: !1, message: "Password must be at least 4 characters" };
+  const s = le(16).toString("hex"), r = Be(t, s), o = {
+    id: E(),
+    username: e,
+    passwordHash: r,
+    salt: s,
     createdAt: Date.now()
   };
-  users.push(user);
-  authStore.set("users", users);
-  authStore.set("currentUserId", user.id);
-  return { success: true, message: "Account created", user: { id: user.id, username: user.username } };
+  return n.push(o), k.set("users", n), k.set("currentUserId", o.id), { success: !0, message: "Account created", user: { id: o.id, username: o.username } };
 }
-function login(username, password) {
-  const users = authStore.get("users");
-  const user = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
-  if (!user) {
-    return { success: false, message: "Invalid username or password" };
-  }
-  if (!verifyPassword(password, user.salt, user.passwordHash)) {
-    return { success: false, message: "Invalid username or password" };
-  }
-  authStore.set("currentUserId", user.id);
-  return { success: true, message: "Logged in", user: { id: user.id, username: user.username } };
+function Je(e, t) {
+  const s = k.get("users").find((r) => r.username.toLowerCase() === e.toLowerCase());
+  return s ? Me(t, s.salt, s.passwordHash) ? (k.set("currentUserId", s.id), { success: !0, message: "Logged in", user: { id: s.id, username: s.username } }) : { success: !1, message: "Invalid username or password" } : { success: !1, message: "Invalid username or password" };
 }
-function logout() {
-  authStore.set("currentUserId", null);
+function Q() {
+  k.set("currentUserId", null);
 }
-const activeSessions = /* @__PURE__ */ new Map();
-const sessionJumpClients = /* @__PURE__ */ new Map();
-function buildConfig(conn) {
-  const config = {
-    host: conn.host,
-    port: conn.port,
-    username: conn.username,
+const _ = /* @__PURE__ */ new Map(), F = /* @__PURE__ */ new Map();
+function I(e) {
+  const t = {
+    host: e.host,
+    port: e.port,
+    username: e.username,
     readyTimeout: 1e4,
     keepaliveInterval: 3e4
   };
-  switch (conn.authType) {
+  switch (e.authType) {
     case "password":
-      config.password = conn.password;
+      t.password = e.password;
       break;
     case "key":
-      if (conn.privateKeyPath) config.privateKey = readFileSync(conn.privateKeyPath);
+      e.privateKeyPath && (t.privateKey = N(e.privateKeyPath));
       break;
     case "key+passphrase":
-      if (conn.privateKeyPath) {
-        config.privateKey = readFileSync(conn.privateKeyPath);
-        config.passphrase = conn.passphrase;
-      }
+      e.privateKeyPath && (t.privateKey = N(e.privateKeyPath), t.passphrase = e.passphrase);
       break;
   }
-  return config;
+  return t;
 }
-function buildHopConfig(hop, sock) {
-  const cfg = { host: hop.host, port: hop.port, username: hop.username, readyTimeout: 1e4 };
-  if (hop.authType === "password") cfg.password = hop.password;
-  else if (hop.privateKeyPath) cfg.privateKey = readFileSync(hop.privateKeyPath);
-  if (sock) cfg.sock = sock;
-  return cfg;
+function We(e, t) {
+  const n = { host: e.host, port: e.port, username: e.username, readyTimeout: 1e4 };
+  return e.authType === "password" ? n.password = e.password : e.privateKeyPath && (n.privateKey = N(e.privateKeyPath)), t && (n.sock = t), n;
 }
-function resolveProxyChain(conn, allConns, visited = /* @__PURE__ */ new Set()) {
-  var _a;
-  const pj = conn.proxyJump;
-  if (!(pj == null ? void 0 : pj.enabled)) return [];
-  if (visited.has(conn.id)) return [];
-  visited.add(conn.id);
-  const hop = {
-    host: pj.host,
-    port: pj.port,
-    username: pj.username,
-    authType: pj.authType || "password",
-    password: pj.password,
-    privateKeyPath: pj.privateKeyPath
+function U(e, t, n = /* @__PURE__ */ new Set()) {
+  var o;
+  const s = e.proxyJump;
+  if (!(s != null && s.enabled)) return [];
+  if (n.has(e.id)) return [];
+  n.add(e.id);
+  const r = {
+    host: s.host,
+    port: s.port,
+    username: s.username,
+    authType: s.authType || "password",
+    password: s.password,
+    privateKeyPath: s.privateKeyPath
   };
-  if (pj.sourceConnectionId) {
-    const srcConn = allConns.find((c) => c.id === pj.sourceConnectionId);
-    if (srcConn && ((_a = srcConn.proxyJump) == null ? void 0 : _a.enabled)) {
-      return [...resolveProxyChain(srcConn, allConns, visited), hop];
-    }
+  if (s.sourceConnectionId) {
+    const a = t.find((c) => c.id === s.sourceConnectionId);
+    if (a && ((o = a.proxyJump) != null && o.enabled))
+      return [...U(a, t, n), r];
   }
-  return [hop];
+  return [r];
 }
-function buildProxyChain(chain, targetHost, targetPort) {
-  return new Promise((resolve, reject) => {
-    const hopClients = [];
-    function connectHop(index, sock) {
-      const hop = chain[index];
-      const client = new Client();
-      hopClients.push(client);
-      client.on("ready", () => {
-        const nextHost = index + 1 < chain.length ? chain[index + 1].host : targetHost;
-        const nextPort = index + 1 < chain.length ? chain[index + 1].port : targetPort;
-        client.forwardOut("127.0.0.1", 0, nextHost, nextPort, (err, fwdStream) => {
-          if (err) {
-            hopClients.forEach((c) => c.end());
-            reject(err);
+function M(e, t, n) {
+  return new Promise((s, r) => {
+    const o = [];
+    function a(c, i) {
+      const l = e[c], d = new b();
+      o.push(d), d.on("ready", () => {
+        const p = c + 1 < e.length ? e[c + 1].host : t, h = c + 1 < e.length ? e[c + 1].port : n;
+        d.forwardOut("127.0.0.1", 0, p, h, (m, D) => {
+          if (m) {
+            o.forEach((v) => v.end()), r(m);
             return;
           }
-          if (index + 1 < chain.length) {
-            connectHop(index + 1, fwdStream);
-          } else {
-            resolve({ stream: fwdStream, hopClients });
-          }
+          c + 1 < e.length ? a(c + 1, D) : s({ stream: D, hopClients: o });
         });
-      });
-      client.on("error", (err) => {
-        hopClients.forEach((c) => c.end());
-        reject(err);
-      });
-      client.connect(buildHopConfig(hop, sock));
+      }), d.on("error", (p) => {
+        o.forEach((h) => h.end()), r(p);
+      }), d.connect(We(l, i));
     }
-    connectHop(0);
+    a(0);
   });
 }
-async function connectViaProxy(conn, allConns, onReady, onError, onData, onClose) {
-  const chain = resolveProxyChain(conn, allConns);
+async function ze(e, t, n, s, r, o) {
+  const a = U(e, t);
   try {
-    const { stream: proxyStream, hopClients } = await buildProxyChain(chain, conn.host, conn.port);
-    const targetClient = new Client();
-    const targetConfig = buildConfig(conn);
-    targetConfig.sock = proxyStream;
-    targetClient.on("ready", () => {
-      targetClient.shell({ term: "xterm-256color" }, (err, shellStream) => {
-        if (err) {
-          targetClient.end();
-          hopClients.forEach((c) => c.end());
-          onError(err);
+    const { stream: c, hopClients: i } = await M(a, e.host, e.port), l = new b(), d = I(e);
+    d.sock = c, l.on("ready", () => {
+      l.shell({ term: "xterm-256color" }, (p, h) => {
+        if (p) {
+          l.end(), i.forEach((D) => D.end()), s(p);
           return;
         }
-        const sessionId = `${conn.id}-${Date.now()}`;
-        activeSessions.set(sessionId, { id: sessionId, connectionId: conn.id, client: targetClient, stream: shellStream });
-        sessionJumpClients.set(sessionId, hopClients);
-        shellStream.on("data", (data) => onData(data.toString("utf-8")));
-        shellStream.on("close", () => {
-          activeSessions.delete(sessionId);
-          sessionJumpClients.delete(sessionId);
-          targetClient.end();
-          hopClients.forEach((c) => c.end());
-          onClose();
-        });
-        onReady(activeSessions.get(sessionId));
+        const m = `${e.id}-${Date.now()}`;
+        _.set(m, { id: m, connectionId: e.id, client: l, stream: h }), F.set(m, i), h.on("data", (D) => r(D.toString("utf-8"))), h.on("close", () => {
+          _.delete(m), F.delete(m), l.end(), i.forEach((D) => D.end()), o();
+        }), n(_.get(m));
       });
-    });
-    targetClient.on("error", (err) => {
-      hopClients.forEach((c) => c.end());
-      onError(err);
-    });
-    targetClient.connect(targetConfig);
-  } catch (err) {
-    onError(err);
+    }), l.on("error", (p) => {
+      i.forEach((h) => h.end()), s(p);
+    }), l.connect(d);
+  } catch (c) {
+    s(c);
   }
 }
-function connectDirect(conn, onReady, onError, onData, onClose) {
-  const client = new Client();
-  const config = buildConfig(conn);
-  client.on("ready", () => {
-    client.shell({ term: "xterm-256color" }, (err, stream) => {
-      if (err) {
-        client.end();
-        onError(err);
+function Ve(e, t, n, s, r) {
+  const o = new b(), a = I(e);
+  o.on("ready", () => {
+    o.shell({ term: "xterm-256color" }, (c, i) => {
+      if (c) {
+        o.end(), n(c);
         return;
       }
-      const sessionId = `${conn.id}-${Date.now()}`;
-      activeSessions.set(sessionId, { id: sessionId, connectionId: conn.id, client, stream });
-      stream.on("data", (data) => onData(data.toString("utf-8")));
-      stream.on("close", () => {
-        activeSessions.delete(sessionId);
-        client.end();
-        onClose();
-      });
-      onReady(activeSessions.get(sessionId));
+      const l = `${e.id}-${Date.now()}`;
+      _.set(l, { id: l, connectionId: e.id, client: o, stream: i }), i.on("data", (d) => s(d.toString("utf-8"))), i.on("close", () => {
+        _.delete(l), o.end(), r();
+      }), t(_.get(l));
     });
-  });
-  client.on("error", onError);
-  client.connect(config);
+  }), o.on("error", n), o.connect(a);
 }
-function connect(conn, allConns, onReady, onError, onData, onClose) {
-  var _a;
-  if ((_a = conn.proxyJump) == null ? void 0 : _a.enabled) {
-    connectViaProxy(conn, allConns, onReady, onError, onData, onClose);
-  } else {
-    connectDirect(conn, onReady, onError, onData, onClose);
-  }
+function Z(e, t, n, s, r, o) {
+  var a;
+  (a = e.proxyJump) != null && a.enabled ? ze(e, t, n, s, r, o) : Ve(e, n, s, r, o);
 }
-function disconnect(sessionId) {
-  var _a, _b;
-  const session = activeSessions.get(sessionId);
-  if (!session) return;
-  (_a = session.stream) == null ? void 0 : _a.end();
-  session.client.end();
-  (_b = sessionJumpClients.get(sessionId)) == null ? void 0 : _b.forEach((c) => c.end());
-  sessionJumpClients.delete(sessionId);
-  activeSessions.delete(sessionId);
+function H(e) {
+  var n, s;
+  const t = _.get(e);
+  t && ((n = t.stream) == null || n.end(), t.client.end(), (s = F.get(e)) == null || s.forEach((r) => r.end()), F.delete(e), _.delete(e));
 }
-function sendInput(sessionId, data) {
-  var _a;
-  const session = activeSessions.get(sessionId);
-  (_a = session == null ? void 0 : session.stream) == null ? void 0 : _a.write(data);
+function qe(e, t) {
+  var s;
+  const n = _.get(e);
+  (s = n == null ? void 0 : n.stream) == null || s.write(t);
 }
-function resizeTerminal(sessionId, cols, rows) {
-  var _a;
-  const session = activeSessions.get(sessionId);
-  (_a = session == null ? void 0 : session.stream) == null ? void 0 : _a.setWindow(rows, cols, 0, 0);
+function je(e, t, n) {
+  var r;
+  const s = _.get(e);
+  (r = s == null ? void 0 : s.stream) == null || r.setWindow(n, t, 0, 0);
 }
-function getActiveSessions() {
-  return Array.from(activeSessions.keys());
+function Ge() {
+  return Array.from(_.keys());
 }
-function disconnectAll() {
-  for (const [id] of activeSessions) {
-    disconnect(id);
-  }
+function Ye() {
+  for (const [e] of _)
+    H(e);
 }
-async function testConnection(conn, allConns = []) {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const onReady = (session) => {
-      const latency = Date.now() - start;
-      disconnect(session.id);
-      resolve({ success: true, message: `Connected in ${latency}ms`, latency });
-    };
-    const onError = (err) => resolve({ success: false, message: err.message });
-    connect(conn, allConns, onReady, onError, () => {
+async function Xe(e, t = []) {
+  return new Promise((n) => {
+    const s = Date.now();
+    Z(e, t, (a) => {
+      const c = Date.now() - s;
+      H(a.id), n({ success: !0, message: `Connected in ${c}ms`, latency: c });
+    }, (a) => n({ success: !1, message: a.message }), () => {
     }, () => {
-    });
-    setTimeout(() => resolve({ success: false, message: "Connection timed out (15s)" }), 15e3);
+    }), setTimeout(() => n({ success: !1, message: "Connection timed out (15s)" }), 15e3);
   });
 }
-async function execCommand(conn, command, allConns = []) {
-  var _a;
-  let output = "";
-  const runExec = (client, hopClients = []) => new Promise((resolve, reject) => {
-    client.exec(command, (err, stream) => {
-      if (err) {
-        client.end();
-        hopClients.forEach((c) => c.end());
-        return reject(err);
-      }
-      stream.on("data", (d) => {
-        output += d.toString("utf-8");
-      });
-      stream.stderr.on("data", (d) => {
-        output += d.toString("utf-8");
-      });
-      stream.on("close", () => {
-        client.end();
-        hopClients.forEach((c) => c.end());
-        resolve(output);
+async function ee(e, t, n = []) {
+  var o;
+  let s = "";
+  const r = (a, c = []) => new Promise((i, l) => {
+    a.exec(t, (d, p) => {
+      if (d)
+        return a.end(), c.forEach((h) => h.end()), l(d);
+      p.on("data", (h) => {
+        s += h.toString("utf-8");
+      }), p.stderr.on("data", (h) => {
+        s += h.toString("utf-8");
+      }), p.on("close", () => {
+        a.end(), c.forEach((h) => h.end()), i(s);
       });
     });
   });
-  if ((_a = conn.proxyJump) == null ? void 0 : _a.enabled) {
-    const chain = resolveProxyChain(conn, allConns);
-    const { stream, hopClients } = await buildProxyChain(chain, conn.host, conn.port);
-    const targetClient = new Client();
-    targetClient.connect({ ...buildConfig(conn), sock: stream });
-    return new Promise((resolve, reject) => {
-      targetClient.on("ready", () => runExec(targetClient, hopClients).then(resolve).catch(reject));
-      targetClient.on("error", (err) => {
-        hopClients.forEach((c) => c.end());
-        reject(err);
+  if ((o = e.proxyJump) != null && o.enabled) {
+    const a = U(e, n), { stream: c, hopClients: i } = await M(a, e.host, e.port), l = new b();
+    return l.connect({ ...I(e), sock: c }), new Promise((d, p) => {
+      l.on("ready", () => r(l, i).then(d).catch(p)), l.on("error", (h) => {
+        i.forEach((m) => m.end()), p(h);
       });
     });
   } else {
-    const client = new Client();
-    client.connect(buildConfig(conn));
-    return new Promise((resolve, reject) => {
-      client.on("ready", () => runExec(client).then(resolve).catch(reject));
-      client.on("error", reject);
+    const a = new b();
+    return a.connect(I(e)), new Promise((c, i) => {
+      a.on("ready", () => r(a).then(c).catch(i)), a.on("error", i);
     });
   }
 }
-async function detectNginxLogFiles(conn, allConns = []) {
-  const command = `
+async function Qe(e, t = []) {
+  const n = `
     set -o pipefail 2>/dev/null || true
     config_logs=$(
       (nginx -T 2>/dev/null || cat         /etc/nginx/nginx.conf         /etc/nginx/conf.d/*.conf         /etc/nginx/sites-enabled/*         /www/server/nginx/conf/nginx.conf         /www/server/nginx/conf/vhost/*.conf         /www/server/panel/vhost/nginx/*.conf         2>/dev/null)       | grep -E 'access_log|error_log'       | grep -v '#'       | grep -oE '/[^ ;]+\\.log'       | sort -u
@@ -606,406 +442,301 @@ async function detectNginxLogFiles(conn, allConns = []) {
         echo "$size $p"
       fi
     done
-  `.trim();
-  const output = await execCommand(conn, `bash -c '${command.replace(/'/g, "'\\''")}'`, allConns);
-  const results = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const line of output.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const spaceIdx = trimmed.indexOf(" ");
-    if (spaceIdx === -1) continue;
-    const filePath = trimmed.substring(spaceIdx + 1).trim();
-    if (!filePath || seen.has(filePath)) continue;
-    seen.add(filePath);
-    results.push({ path: filePath, name: filePath.split("/").pop() || filePath, sizeBytes: parseInt(trimmed.substring(0, spaceIdx), 10) || 0 });
+  `.trim(), s = await ee(e, `bash -c '${n.replace(/'/g, "'\\''")}'`, t), r = [], o = /* @__PURE__ */ new Set();
+  for (const a of s.split(`
+`)) {
+    const c = a.trim();
+    if (!c) continue;
+    const i = c.indexOf(" ");
+    if (i === -1) continue;
+    const l = c.substring(i + 1).trim();
+    !l || o.has(l) || (o.add(l), r.push({ path: l, name: l.split("/").pop() || l, sizeBytes: parseInt(c.substring(0, i), 10) || 0 }));
   }
-  results.sort((a, b) => {
-    const aIsAccess = a.name.startsWith("access") ? 0 : 1;
-    const bIsAccess = b.name.startsWith("access") ? 0 : 1;
-    return aIsAccess !== bIsAccess ? aIsAccess - bIsAccess : a.path.localeCompare(b.path);
-  });
-  return results;
+  return r.sort((a, c) => {
+    const i = a.name.startsWith("access") ? 0 : 1, l = c.name.startsWith("access") ? 0 : 1;
+    return i !== l ? i - l : a.path.localeCompare(c.path);
+  }), r;
 }
-const NGINX_REGEX = /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([^"]*)"\s+(\d+)\s+(\d+|-)\s+"([^"]*)"\s+"([^"]*)"/;
-function buildDatePattern(filters) {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const formatDate = (d) => `${d.getDate().toString().padStart(2, "0")}/${months[d.getMonth()]}/${d.getFullYear()}`;
-  if (filters.dateFilter === "this_month") {
-    const d = /* @__PURE__ */ new Date();
-    return `${months[d.getMonth()]}/${d.getFullYear()}`;
+const Ze = /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([^"]*)"\s+(\d+)\s+(\d+|-)\s+"([^"]*)"\s+"([^"]*)"/;
+function et(e) {
+  const t = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], n = (r) => `${r.getDate().toString().padStart(2, "0")}/${t[r.getMonth()]}/${r.getFullYear()}`;
+  if (e.dateFilter === "this_month") {
+    const r = /* @__PURE__ */ new Date();
+    return `${t[r.getMonth()]}/${r.getFullYear()}`;
   }
-  const targetDates = [];
-  if (filters.dateFilter === "today") {
-    targetDates.push(/* @__PURE__ */ new Date());
-  } else if (filters.dateFilter === "7days") {
-    for (let i = 0; i < 7; i++) {
-      const d = /* @__PURE__ */ new Date();
-      d.setDate(d.getDate() - i);
-      targetDates.push(d);
+  const s = [];
+  if (e.dateFilter === "today")
+    s.push(/* @__PURE__ */ new Date());
+  else if (e.dateFilter === "7days")
+    for (let r = 0; r < 7; r++) {
+      const o = /* @__PURE__ */ new Date();
+      o.setDate(o.getDate() - r), s.push(o);
     }
-  } else if (filters.dateFilter === "specific" && filters.startDate) {
-    const [y, m, d] = filters.startDate.split("-").map(Number);
-    if (!isNaN(y)) targetDates.push(new Date(y, m - 1, d));
-  } else if (filters.dateFilter === "range" && filters.startDate && filters.endDate) {
-    const [sy, sm, sd] = filters.startDate.split("-").map(Number);
-    const [ey, em, ed] = filters.endDate.split("-").map(Number);
-    if (!isNaN(sy) && !isNaN(ey)) {
-      let iter = new Date(sy, sm - 1, sd);
-      const end = new Date(ey, em - 1, ed);
-      let g = 0;
-      while (iter <= end && g++ < 32) {
-        targetDates.push(new Date(iter));
-        iter.setDate(iter.getDate() + 1);
-      }
+  else if (e.dateFilter === "specific" && e.startDate) {
+    const [r, o, a] = e.startDate.split("-").map(Number);
+    isNaN(r) || s.push(new Date(r, o - 1, a));
+  } else if (e.dateFilter === "range" && e.startDate && e.endDate) {
+    const [r, o, a] = e.startDate.split("-").map(Number), [c, i, l] = e.endDate.split("-").map(Number);
+    if (!isNaN(r) && !isNaN(c)) {
+      let d = new Date(r, o - 1, a);
+      const p = new Date(c, i - 1, l);
+      let h = 0;
+      for (; d <= p && h++ < 32; )
+        s.push(new Date(d)), d.setDate(d.getDate() + 1);
     }
   }
-  return targetDates.length > 0 ? targetDates.map((d) => formatDate(d)).join("|") : "";
+  return s.length > 0 ? s.map((r) => n(r)).join("|") : "";
 }
-async function downloadAndParseLog(conn, remotePath, filters, onProgress, allConns = []) {
-  var _a;
-  onProgress == null ? void 0 : onProgress("Đang khởi tạo kết nối SSH...");
-  let command = `tail -n 200000 "${remotePath}"`;
-  if (filters) {
-    const pattern = buildDatePattern(filters);
-    if (pattern && pattern.includes("|")) command = `grep -E "${pattern}" "${remotePath}" | tail -n 200000`;
-    else if (pattern) command = `grep "${pattern}" "${remotePath}" | tail -n 200000`;
+async function tt(e, t, n, s, r = []) {
+  var c;
+  s == null || s("Đang khởi tạo kết nối SSH...");
+  let o = `tail -n 200000 "${t}"`;
+  if (n) {
+    const i = et(n);
+    i && i.includes("|") ? o = `grep -E "${i}" "${t}" | tail -n 200000` : i && (o = `grep "${i}" "${t}" | tail -n 200000`);
   }
-  const runAndParse = (client, hopClients = []) => new Promise((resolve, reject) => {
-    client.exec(command, (err, stream) => {
-      if (err) {
-        client.end();
-        hopClients.forEach((c) => c.end());
-        return reject(err);
-      }
-      onProgress == null ? void 0 : onProgress("Đang đọc dữ liệu log...");
-      parseLogStream(stream).then((logs) => {
-        client.end();
-        hopClients.forEach((c) => c.end());
-        resolve(logs);
-      }).catch((err2) => {
-        client.end();
-        hopClients.forEach((c) => c.end());
-        reject(err2);
-      });
-      stream.on("close", () => {
+  const a = (i, l = []) => new Promise((d, p) => {
+    i.exec(o, (h, m) => {
+      if (h)
+        return i.end(), l.forEach((D) => D.end()), p(h);
+      s == null || s("Đang đọc dữ liệu log..."), nt(m).then((D) => {
+        i.end(), l.forEach((v) => v.end()), d(D);
+      }).catch((D) => {
+        i.end(), l.forEach((v) => v.end()), p(D);
+      }), m.on("close", () => {
       });
     });
   });
-  if ((_a = conn.proxyJump) == null ? void 0 : _a.enabled) {
-    const chain = resolveProxyChain(conn, allConns);
-    onProgress == null ? void 0 : onProgress(`Đang kết nối qua ${chain.length} hop(s)...`);
-    const { stream, hopClients } = await buildProxyChain(chain, conn.host, conn.port || 22);
-    const targetClient = new Client();
-    targetClient.connect({ ...buildConfig(conn), sock: stream });
-    return new Promise((resolve, reject) => {
-      targetClient.on("ready", () => runAndParse(targetClient, hopClients).then(resolve).catch(reject));
-      targetClient.on("error", (err) => {
-        hopClients.forEach((c) => c.end());
-        reject(err);
+  if ((c = e.proxyJump) != null && c.enabled) {
+    const i = U(e, r);
+    s == null || s(`Đang kết nối qua ${i.length} hop(s)...`);
+    const { stream: l, hopClients: d } = await M(i, e.host, e.port || 22), p = new b();
+    return p.connect({ ...I(e), sock: l }), new Promise((h, m) => {
+      p.on("ready", () => a(p, d).then(h).catch(m)), p.on("error", (D) => {
+        d.forEach((v) => v.end()), m(D);
       });
     });
   } else {
-    const client = new Client();
-    client.connect(buildConfig(conn));
-    return new Promise((resolve, reject) => {
-      client.on("ready", () => runAndParse(client).then(resolve).catch(reject));
-      client.on("error", reject);
+    const i = new b();
+    return i.connect(I(e)), new Promise((l, d) => {
+      i.on("ready", () => a(i).then(l).catch(d)), i.on("error", d);
     });
   }
 }
-async function parseLogStream(inputStream) {
-  const rl = readline.createInterface({ input: inputStream, crlfDelay: Infinity });
-  const entries = [];
-  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1e3;
-  for await (const line of rl) {
-    if (!line.trim()) continue;
-    const match = NGINX_REGEX.exec(line);
-    if (match) {
+async function nt(e) {
+  const t = de.createInterface({ input: e, crlfDelay: 1 / 0 }), n = [], s = 30 * 24 * 60 * 60 * 1e3;
+  for await (const r of t) {
+    if (!r.trim()) continue;
+    const o = Ze.exec(r);
+    if (o)
       try {
-        const ts = new Date(match[2].replace(":", " ")).getTime();
-        if (!isNaN(ts)) {
-          const reqParts = match[3].split(" ");
-          let bytes = parseInt(match[5], 10);
-          if (isNaN(bytes)) bytes = 0;
-          entries.push({ raw: line, ip: match[1], timestamp: new Date(ts).toISOString(), method: reqParts[0], path: reqParts[1] || "", status: parseInt(match[4], 10), bytes, referer: match[6], userAgent: match[7] });
-          if (entries.length % 5e4 === 0) {
-            const limit = ts - THIRTY_DAYS_MS;
-            let drop = 0;
-            while (drop < entries.length && new Date(entries[drop].timestamp).getTime() < limit) drop++;
-            if (drop > 0) entries.splice(0, drop);
+        const a = new Date(o[2].replace(":", " ")).getTime();
+        if (!isNaN(a)) {
+          const c = o[3].split(" ");
+          let i = parseInt(o[5], 10);
+          if (isNaN(i) && (i = 0), n.push({ raw: r, ip: o[1], timestamp: new Date(a).toISOString(), method: c[0], path: c[1] || "", status: parseInt(o[4], 10), bytes: i, referer: o[6], userAgent: o[7] }), n.length % 5e4 === 0) {
+            const l = a - s;
+            let d = 0;
+            for (; d < n.length && new Date(n[d].timestamp).getTime() < l; ) d++;
+            d > 0 && n.splice(0, d);
           }
         }
       } catch {
       }
-    }
   }
-  if (entries.length > 0) {
-    const latestTs = new Date(entries[entries.length - 1].timestamp).getTime();
-    const limit = latestTs - THIRTY_DAYS_MS;
-    let drop = 0;
-    while (drop < entries.length && new Date(entries[drop].timestamp).getTime() < limit) drop++;
-    if (drop > 0) entries.splice(0, drop);
+  if (n.length > 0) {
+    const o = new Date(n[n.length - 1].timestamp).getTime() - s;
+    let a = 0;
+    for (; a < n.length && new Date(n[a].timestamp).getTime() < o; ) a++;
+    a > 0 && n.splice(0, a);
   }
-  return entries;
+  return n;
 }
-createRequire(import.meta.url);
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-process.env.APP_ROOT = path.join(__dirname$1, "..");
-const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
-let win;
-function createWindow() {
-  win = new BrowserWindow({
+oe(import.meta.url);
+const te = S.dirname(ae(import.meta.url));
+process.env.APP_ROOT = S.join(te, "..");
+const R = process.env.VITE_DEV_SERVER_URL, gt = S.join(process.env.APP_ROOT, "dist-electron"), ne = S.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = R ? S.join(process.env.APP_ROOT, "public") : ne;
+let x;
+function se() {
+  x = new z({
     width: 1280,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#0a0a0a",
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: S.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: path.join(__dirname$1, "preload.mjs"),
-      nodeIntegration: false,
-      contextIsolation: true
+      preload: S.join(te, "preload.mjs"),
+      nodeIntegration: !1,
+      contextIsolation: !0
     }
-  });
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
-  }
+  }), R ? x.loadURL(R) : x.loadFile(S.join(ne, "index.html"));
 }
-function requireUserId() {
-  const user = getCurrentUser();
-  if (!user) throw new Error("Not authenticated");
-  return user.id;
+function f() {
+  const e = B();
+  if (!e) throw new Error("Not authenticated");
+  return e.id;
 }
-ipcMain.handle("auth:register", (_e, username, password) => {
-  return register(username, password);
-});
-ipcMain.handle("auth:login", (_e, username, password) => {
-  return login(username, password);
-});
-ipcMain.handle("auth:logout", () => {
-  logout();
-  return { success: true };
-});
-ipcMain.handle("auth:current-user", () => {
-  return getCurrentUser();
-});
-const ALGORITHM = "aes-256-gcm";
-function encryptData(text, password) {
-  if (!password) return JSON.stringify({ encrypted: false, data: text });
-  const salt = crypto.randomBytes(16);
-  const key = crypto.pbkdf2Sync(password, salt, 1e5, 32, "sha256");
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  let encrypted = cipher.update(text, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  const authTag = cipher.getAuthTag();
+u.handle("auth:register", (e, t, n) => He(t, n));
+u.handle("auth:login", (e, t, n) => Je(t, n));
+u.handle("auth:logout", () => (Q(), { success: !0 }));
+u.handle("auth:current-user", () => B());
+const re = "aes-256-gcm";
+function st(e, t) {
+  if (!t) return JSON.stringify({ encrypted: !1, data: e });
+  const n = C.randomBytes(16), s = C.pbkdf2Sync(t, n, 1e5, 32, "sha256"), r = C.randomBytes(12), o = C.createCipheriv(re, s, r);
+  let a = o.update(e, "utf8", "base64");
+  a += o.final("base64");
+  const c = o.getAuthTag();
   return JSON.stringify({
-    encrypted: true,
-    salt: salt.toString("base64"),
-    iv: iv.toString("base64"),
-    authTag: authTag.toString("base64"),
-    data: encrypted
+    encrypted: !0,
+    salt: n.toString("base64"),
+    iv: r.toString("base64"),
+    authTag: c.toString("base64"),
+    data: a
   });
 }
-function decryptData(jsonString, password) {
-  const parsed = JSON.parse(jsonString);
-  if (!parsed.encrypted) return parsed.data;
-  if (!password) throw new Error("A password is required to decrypt this backup");
-  const salt = Buffer.from(parsed.salt, "base64");
-  const iv = Buffer.from(parsed.iv, "base64");
-  const authTag = Buffer.from(parsed.authTag, "base64");
-  const key = crypto.pbkdf2Sync(password, salt, 1e5, 32, "sha256");
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(parsed.data, "base64", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+function rt(e, t) {
+  const n = JSON.parse(e);
+  if (!n.encrypted) return n.data;
+  if (!t) throw new Error("A password is required to decrypt this backup");
+  const s = Buffer.from(n.salt, "base64"), r = Buffer.from(n.iv, "base64"), o = Buffer.from(n.authTag, "base64"), a = C.pbkdf2Sync(t, s, 1e5, 32, "sha256"), c = C.createDecipheriv(re, a, r);
+  c.setAuthTag(o);
+  let i = c.update(n.data, "base64", "utf8");
+  return i += c.final("utf8"), i;
 }
-ipcMain.handle("data:export", async (_e, password) => {
-  const userId = requireUserId();
-  const data = getUserDataRaw(userId);
-  const jsonString = JSON.stringify(data);
-  const defaultPath = path.join(app.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`);
-  const result = await dialog.showSaveDialog(win, {
+u.handle("data:export", async (e, t) => {
+  const n = f(), s = we(n), r = JSON.stringify(s), o = S.join(A.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`), a = await O.showSaveDialog(x, {
     title: "Export Data",
-    defaultPath,
+    defaultPath: o,
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
   });
-  if (result.canceled || !result.filePath) return { success: false, message: "Canceled" };
+  if (a.canceled || !a.filePath) return { success: !1, message: "Canceled" };
   try {
-    const fileData = encryptData(jsonString, password);
-    await fs.writeFile(result.filePath, fileData, "utf8");
-    return { success: true };
-  } catch (err) {
-    return { success: false, message: err.message };
+    const c = st(r, t);
+    return await q.writeFile(a.filePath, c, "utf8"), { success: !0 };
+  } catch (c) {
+    return { success: !1, message: c.message };
   }
 });
-ipcMain.handle("data:import", async (_e, password) => {
-  const userId = requireUserId();
-  const result = await dialog.showOpenDialog(win, {
+u.handle("data:import", async (e, t) => {
+  const n = f(), s = await O.showOpenDialog(x, {
     title: "Import Data",
     properties: ["openFile"],
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
   });
-  if (result.canceled || result.filePaths.length === 0) return { success: false, message: "Canceled" };
+  if (s.canceled || s.filePaths.length === 0) return { success: !1, message: "Canceled" };
   try {
-    const fileData = await fs.readFile(result.filePaths[0], "utf8");
-    const decryptedData = decryptData(fileData, password);
-    const userData = JSON.parse(decryptedData);
-    if (!userData.settings || !Array.isArray(userData.connections)) {
+    const r = await q.readFile(s.filePaths[0], "utf8"), o = rt(r, t), a = JSON.parse(o);
+    if (!a.settings || !Array.isArray(a.connections))
       throw new Error("Invalid backup file format");
-    }
-    setUserDataRaw(userId, userData);
-    return { success: true };
-  } catch (err) {
-    return { success: false, message: err.message };
+    return ye(n, a), { success: !0 };
+  } catch (r) {
+    return { success: !1, message: r.message };
   }
 });
-ipcMain.handle("connections:list", () => getConnections(requireUserId()));
-ipcMain.handle("connections:get", (_e, id) => getConnectionById(requireUserId(), id));
-ipcMain.handle("connections:create", (_e, data) => {
-  return createConnection(requireUserId(), data);
-});
-ipcMain.handle("connections:update", (_e, id, data) => {
-  return updateConnection(requireUserId(), id, data);
-});
-ipcMain.handle("connections:delete", (_e, id) => deleteConnection(requireUserId(), id));
-ipcMain.handle("connections:duplicate", (_e, id) => duplicateConnection(requireUserId(), id));
-ipcMain.handle("ssh:connect", (_e, connectionId) => {
-  const userId = requireUserId();
-  const conn = getConnectionById(userId, connectionId);
-  if (!conn) return { success: false, message: "Connection not found" };
-  const allConns = getConnections(userId);
-  return new Promise((resolve) => {
-    connect(
-      conn,
-      allConns,
-      (session) => {
-        touchConnection(userId, connectionId);
-        resolve({ success: true, sessionId: session.id });
+u.handle("connections:list", () => T(f()));
+u.handle("connections:get", (e, t) => L(f(), t));
+u.handle("connections:create", (e, t) => G(f(), t));
+u.handle("connections:update", (e, t, n) => Y(f(), t, n));
+u.handle("connections:delete", (e, t) => De(f(), t));
+u.handle("connections:duplicate", (e, t) => xe(f(), t));
+u.handle("ssh:connect", (e, t) => {
+  const n = f(), s = L(n, t);
+  if (!s) return { success: !1, message: "Connection not found" };
+  const r = T(n);
+  return new Promise((o) => {
+    Z(
+      s,
+      r,
+      (a) => {
+        _e(n, t), o({ success: !0, sessionId: a.id });
       },
-      (err) => {
-        resolve({ success: false, message: err.message });
+      (a) => {
+        o({ success: !1, message: a.message });
       },
-      (data) => {
-        win == null ? void 0 : win.webContents.send("ssh:data", connectionId, data);
+      (a) => {
+        x == null || x.webContents.send("ssh:data", t, a);
       },
       () => {
-        win == null ? void 0 : win.webContents.send("ssh:closed", connectionId);
+        x == null || x.webContents.send("ssh:closed", t);
       }
     );
   });
 });
-ipcMain.handle("ssh:disconnect", (_e, sessionId) => {
-  disconnect(sessionId);
+u.handle("ssh:disconnect", (e, t) => {
+  H(t);
 });
-ipcMain.on("ssh:input", (_e, sessionId, data) => {
-  sendInput(sessionId, data);
+u.on("ssh:input", (e, t, n) => {
+  qe(t, n);
 });
-ipcMain.on("ssh:resize", (_e, sessionId, cols, rows) => {
-  resizeTerminal(sessionId, cols, rows);
+u.on("ssh:resize", (e, t, n, s) => {
+  je(t, n, s);
 });
-ipcMain.handle("ssh:test", async (_e, connData) => {
-  const userId = requireUserId();
-  const allConns = getConnections(userId);
-  return testConnection(connData, allConns);
+u.handle("ssh:test", async (e, t) => {
+  const n = f(), s = T(n);
+  return Xe(t, s);
 });
-ipcMain.handle("ssh:exec", async (_e, connData, command) => {
-  const userId = requireUserId();
-  const allConns = getConnections(userId);
-  return execCommand(connData, command, allConns);
+u.handle("ssh:exec", async (e, t, n) => {
+  const s = f(), r = T(s);
+  return ee(t, n, r);
 });
-ipcMain.handle("ssh:analyze-log", async (event, connData, logPath, filters) => {
-  const userId = requireUserId();
-  const allConns = getConnections(userId);
-  return downloadAndParseLog(connData, logPath, filters, (status) => {
-    event.sender.send("ssh:analyze-status", status);
-  }, allConns);
+u.handle("ssh:analyze-log", async (e, t, n, s) => {
+  const r = f(), o = T(r);
+  return tt(t, n, s, (a) => {
+    e.sender.send("ssh:analyze-status", a);
+  }, o);
 });
-ipcMain.handle("ssh:detect-nginx-logs", async (_e, connData) => {
-  const userId = requireUserId();
-  const allConns = getConnections(userId);
-  return detectNginxLogFiles(connData, allConns);
+u.handle("ssh:detect-nginx-logs", async (e, t) => {
+  const n = f(), s = T(n);
+  return Qe(t, s);
 });
-ipcMain.handle("ssh:active-sessions", () => getActiveSessions());
-ipcMain.handle("workspaces:list", () => getWorkspaces(requireUserId()));
-ipcMain.handle("workspaces:create", (_e, data) => {
-  return createWorkspace(requireUserId(), data);
-});
-ipcMain.handle("workspaces:update", (_e, id, data) => {
-  return updateWorkspace(requireUserId(), id, data);
-});
-ipcMain.handle("workspaces:delete", (_e, id) => deleteWorkspace(requireUserId(), id));
-ipcMain.handle("folders:list", () => getFolders(requireUserId()));
-ipcMain.handle("folders:list-by-workspace", (_e, workspaceId) => getFoldersByWorkspace(requireUserId(), workspaceId));
-ipcMain.handle("folders:create", (_e, data) => {
-  return createFolder(requireUserId(), data);
-});
-ipcMain.handle("folders:update", (_e, id, data) => {
-  return updateFolder(requireUserId(), id, data);
-});
-ipcMain.handle("folders:delete", (_e, id) => deleteFolder(requireUserId(), id));
-ipcMain.handle("tags:list", () => getTags(requireUserId()));
-ipcMain.handle("tags:create", (_e, data) => {
-  return createTag(requireUserId(), data);
-});
-ipcMain.handle("tags:update", (_e, id, data) => {
-  return updateTag(requireUserId(), id, data);
-});
-ipcMain.handle("tags:delete", (_e, id) => deleteTag(requireUserId(), id));
-ipcMain.handle("settings:get", () => getSettings(requireUserId()));
-ipcMain.handle("settings:update", (_e, data) => updateSettings(requireUserId(), data));
-ipcMain.handle("ssh-keys:list", () => getSSHKeys(requireUserId()));
-ipcMain.handle("ssh-keys:create", (_e, data) => {
-  return createSSHKey(requireUserId(), data);
-});
-ipcMain.handle("ssh-keys:update", (_e, id, data) => {
-  return updateSSHKey(requireUserId(), id, data);
-});
-ipcMain.handle("ssh-keys:delete", (_e, id) => deleteSSHKey(requireUserId(), id));
-ipcMain.handle("dialog:select-file", async (_e, options) => {
-  const result = await dialog.showOpenDialog(win, {
+u.handle("ssh:active-sessions", () => Ge());
+u.handle("workspaces:list", () => Se(f()));
+u.handle("workspaces:create", (e, t) => ke(f(), t));
+u.handle("workspaces:update", (e, t, n) => ve(f(), t, n));
+u.handle("workspaces:delete", (e, t) => be(f(), t));
+u.handle("folders:list", () => X(f()));
+u.handle("folders:list-by-workspace", (e, t) => Ce(f(), t));
+u.handle("folders:create", (e, t) => Ie(f(), t));
+u.handle("folders:update", (e, t, n) => Ee(f(), t, n));
+u.handle("folders:delete", (e, t) => Te(f(), t));
+u.handle("tags:list", () => Ae(f()));
+u.handle("tags:create", (e, t) => $e(f(), t));
+u.handle("tags:update", (e, t, n) => Pe(f(), t, n));
+u.handle("tags:delete", (e, t) => Ke(f(), t));
+u.handle("settings:get", () => Fe(f()));
+u.handle("settings:update", (e, t) => Ue(f(), t));
+u.handle("ssh-keys:list", () => Ne(f()));
+u.handle("ssh-keys:create", (e, t) => Re(f(), t));
+u.handle("ssh-keys:update", (e, t, n) => Oe(f(), t, n));
+u.handle("ssh-keys:delete", (e, t) => Le(f(), t));
+u.handle("dialog:select-file", async (e, t) => {
+  const n = await O.showOpenDialog(x, {
     properties: ["openFile"],
     title: "Select SSH Private Key",
     filters: [{ name: "All Files", extensions: ["*"] }],
-    ...options
+    ...t
   });
-  return result.canceled ? null : result.filePaths[0];
+  return n.canceled ? null : n.filePaths[0];
 });
-app.on("window-all-closed", () => {
-  disconnectAll();
-  if (process.platform !== "darwin") {
-    app.quit();
-    win = null;
-  }
+A.on("window-all-closed", () => {
+  Ye(), process.platform !== "darwin" && (A.quit(), x = null);
 });
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+A.on("activate", () => {
+  z.getAllWindows().length === 0 && se();
 });
-app.whenReady().then(() => {
-  createWindow();
-  function handleScreenLock() {
-    if (getCurrentUser()) {
-      logout();
-      if (win && !win.isDestroyed()) {
-        win.webContents.send("app:lock-screen");
-      }
-    }
+A.whenReady().then(() => {
+  se();
+  function e() {
+    B() && (Q(), x && !x.isDestroyed() && x.webContents.send("app:lock-screen"));
   }
-  powerMonitor.on("suspend", handleScreenLock);
-  powerMonitor.on("lock-screen", handleScreenLock);
+  J.on("suspend", e), J.on("lock-screen", e);
 });
 export {
-  MAIN_DIST,
-  RENDERER_DIST,
-  VITE_DEV_SERVER_URL
+  gt as MAIN_DIST,
+  ne as RENDERER_DIST,
+  R as VITE_DEV_SERVER_URL
 };
