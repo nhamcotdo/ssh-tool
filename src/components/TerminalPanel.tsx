@@ -171,15 +171,15 @@ export default function TerminalPanel({
             })
 
             // Listen for SSH data
-            const removeDataListener = window.sshTool.onSshData((connId, data) => {
-                if (connId === activeTab.connectionId) {
+            const removeDataListener = window.sshTool.onSshData((sessionId, data) => {
+                if (sessionId === activeTab.sessionId) {
                     term.write(data)
                 }
             })
 
             // Listen for SSH close
-            const removeCloseListener = window.sshTool.onSshClosed((connId) => {
-                if (connId === activeTab.connectionId) {
+            const removeCloseListener = window.sshTool.onSshClosed((sessionId) => {
+                if (sessionId === activeTab.sessionId) {
                     term.write('\r\n\x1b[31m--- Connection closed ---\x1b[0m\r\n')
                 }
             })

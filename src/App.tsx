@@ -101,9 +101,9 @@ export default function App() {
   useEffect(() => {
     if (!authChecked) return
 
-    const removeCloseListener = window.sshTool.onSshClosed((connId) => {
+    const removeCloseListener = window.sshTool.onSshClosed((sessionId) => {
       setTerminalTabs(prev => prev.map(t =>
-        t.connectionId === connId && t.connected
+        t.sessionId === sessionId && t.connected
           ? { ...t, connected: false }
           : t
       ))

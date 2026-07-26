@@ -35,13 +35,13 @@ const api = {
   },
   sshActiveSessions: () => ipcRenderer.invoke('ssh:active-sessions'),
 
-  onSshData: (callback: (connectionId: string, data: string) => void) => {
-    const handler = (_e: any, connectionId: string, data: string) => callback(connectionId, data)
+  onSshData: (callback: (sessionId: string, data: string) => void) => {
+    const handler = (_e: any, sessionId: string, data: string) => callback(sessionId, data)
     ipcRenderer.on('ssh:data', handler)
     return () => ipcRenderer.removeListener('ssh:data', handler)
   },
-  onSshClosed: (callback: (connectionId: string) => void) => {
-    const handler = (_e: any, connectionId: string) => callback(connectionId)
+  onSshClosed: (callback: (sessionId: string) => void) => {
+    const handler = (_e: any, sessionId: string) => callback(sessionId)
     ipcRenderer.on('ssh:closed', handler)
     return () => ipcRenderer.removeListener('ssh:closed', handler)
   },

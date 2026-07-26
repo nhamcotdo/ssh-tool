@@ -1,12 +1,12 @@
-import { ipcMain as u, app as A, dialog as O, BrowserWindow as z, powerMonitor as J } from "electron";
+import { ipcMain as u, app as A, dialog as L, BrowserWindow as V, powerMonitor as W } from "electron";
 import { createRequire as oe } from "node:module";
 import { fileURLToPath as ae } from "node:url";
 import S from "node:path";
-import C, { randomFillSync as ce, randomUUID as ie, randomBytes as le, scryptSync as V, timingSafeEqual as ue } from "node:crypto";
-import q from "node:fs/promises";
-import j from "electron-store";
+import C, { randomFillSync as ce, randomUUID as ie, randomBytes as le, scryptSync as q, timingSafeEqual as ue } from "node:crypto";
+import j from "node:fs/promises";
+import G from "electron-store";
 import { Client as b } from "ssh2";
-import { readFileSync as N } from "node:fs";
+import { readFileSync as R } from "node:fs";
 import de from "node:readline";
 const w = [];
 for (let e = 0; e < 256; ++e)
@@ -19,7 +19,7 @@ let $ = P.length;
 function he() {
   return $ > P.length - 16 && (ce(P), $ = 0), P.slice($, $ += 16);
 }
-const W = { randomUUID: ie };
+const z = { randomUUID: ie };
 function pe(e, t, n) {
   var r;
   e = e || {};
@@ -29,7 +29,7 @@ function pe(e, t, n) {
   return s[6] = s[6] & 15 | 64, s[8] = s[8] & 63 | 128, fe(s);
 }
 function E(e, t, n) {
-  return W.randomUUID && !e ? W.randomUUID() : pe(e);
+  return z.randomUUID && !e ? z.randomUUID() : pe(e);
 }
 const ge = {
   terminalFontSize: 14,
@@ -43,7 +43,7 @@ const ge = {
   color: "#3b82f6",
   order: 0,
   createdAt: Date.now()
-}, K = new j({
+}, K = new G({
   defaults: {
     userData: {}
   }
@@ -76,10 +76,10 @@ function ye(e, t) {
 function T(e) {
   return g(e).connections;
 }
-function L(e, t) {
+function B(e, t) {
   return g(e).connections.find((n) => n.id === t);
 }
-function G(e, t) {
+function Y(e, t) {
   const n = Date.now(), s = {
     ...t,
     id: E(),
@@ -88,7 +88,7 @@ function G(e, t) {
   }, r = g(e);
   return r.connections.push(s), y(e, r), s;
 }
-function Y(e, t, n) {
+function X(e, t, n) {
   const s = g(e), r = s.connections.findIndex((o) => o.id === t);
   return r === -1 ? null : (s.connections[r] = { ...s.connections[r], ...n, updatedAt: Date.now() }, y(e, s), s.connections[r]);
 }
@@ -97,13 +97,13 @@ function De(e, t) {
   return n.connections = n.connections.filter((r) => r.id !== t), n.connections.length === s ? !1 : (y(e, n), !0);
 }
 function xe(e, t) {
-  const n = L(e, t);
+  const n = B(e, t);
   if (!n) return null;
   const { id: s, createdAt: r, updatedAt: o, ...a } = n;
-  return G(e, { ...a, name: `${n.name} (copy)` });
+  return Y(e, { ...a, name: `${n.name} (copy)` });
 }
 function _e(e, t) {
-  Y(e, t, { lastConnected: Date.now() });
+  X(e, t, { lastConnected: Date.now() });
 }
 function Se(e) {
   return g(e).workspaces.sort((t, n) => t.order - n.order);
@@ -128,11 +128,11 @@ function be(e, t) {
     s.workspaceId === t && (s.workspaceId = "default");
   }), y(e, n), !0;
 }
-function X(e) {
+function Q(e) {
   return g(e).folders.sort((t, n) => t.order - n.order);
 }
 function Ce(e, t) {
-  return X(e).filter((n) => n.workspaceId === t);
+  return Q(e).filter((n) => n.workspaceId === t);
 }
 function Ie(e, t) {
   const n = g(e), s = {
@@ -204,7 +204,7 @@ function Le(e, t) {
   const s = n.sshKeys.filter((r) => r.id !== t);
   return s.length === n.sshKeys.length ? !1 : (n.sshKeys = s, y(e, n), !0);
 }
-const k = new j({
+const k = new G({
   name: "auth",
   defaults: {
     users: [],
@@ -212,13 +212,13 @@ const k = new j({
   }
 });
 function Be(e, t) {
-  return V(e, t, 64).toString("hex");
+  return q(e, t, 64).toString("hex");
 }
 function Me(e, t, n) {
-  const s = Buffer.from(n, "hex"), r = V(e, t, 64);
+  const s = Buffer.from(n, "hex"), r = q(e, t, 64);
   return ue(s, r);
 }
-function B() {
+function M() {
   const e = k.get("currentUserId");
   if (!e) return null;
   const t = k.get("users").find((n) => n.id === e);
@@ -245,10 +245,10 @@ function Je(e, t) {
   const s = k.get("users").find((r) => r.username.toLowerCase() === e.toLowerCase());
   return s ? Me(t, s.salt, s.passwordHash) ? (k.set("currentUserId", s.id), { success: !0, message: "Logged in", user: { id: s.id, username: s.username } }) : { success: !1, message: "Invalid username or password" } : { success: !1, message: "Invalid username or password" };
 }
-function Q() {
+function F() {
   k.set("currentUserId", null);
 }
-const _ = /* @__PURE__ */ new Map(), F = /* @__PURE__ */ new Map();
+const _ = /* @__PURE__ */ new Map(), U = /* @__PURE__ */ new Map();
 function I(e) {
   const t = {
     host: e.host,
@@ -262,19 +262,19 @@ function I(e) {
       t.password = e.password;
       break;
     case "key":
-      e.privateKeyPath && (t.privateKey = N(e.privateKeyPath));
+      e.privateKeyPath && (t.privateKey = R(e.privateKeyPath));
       break;
     case "key+passphrase":
-      e.privateKeyPath && (t.privateKey = N(e.privateKeyPath), t.passphrase = e.passphrase);
+      e.privateKeyPath && (t.privateKey = R(e.privateKeyPath), t.passphrase = e.passphrase);
       break;
   }
   return t;
 }
 function We(e, t) {
   const n = { host: e.host, port: e.port, username: e.username, readyTimeout: 1e4 };
-  return e.authType === "password" ? n.password = e.password : e.privateKeyPath && (n.privateKey = N(e.privateKeyPath)), t && (n.sock = t), n;
+  return e.authType === "password" ? n.password = e.password : e.privateKeyPath && (n.privateKey = R(e.privateKeyPath)), t && (n.sock = t), n;
 }
-function U(e, t, n = /* @__PURE__ */ new Set()) {
+function N(e, t, n = /* @__PURE__ */ new Set()) {
   var o;
   const s = e.proxyJump;
   if (!(s != null && s.enabled)) return [];
@@ -291,11 +291,11 @@ function U(e, t, n = /* @__PURE__ */ new Set()) {
   if (s.sourceConnectionId) {
     const a = t.find((c) => c.id === s.sourceConnectionId);
     if (a && ((o = a.proxyJump) != null && o.enabled))
-      return [...U(a, t, n), r];
+      return [...N(a, t, n), r];
   }
   return [r];
 }
-function M(e, t, n) {
+function H(e, t, n) {
   return new Promise((s, r) => {
     const o = [];
     function a(c, i) {
@@ -317,9 +317,9 @@ function M(e, t, n) {
   });
 }
 async function ze(e, t, n, s, r, o) {
-  const a = U(e, t);
+  const a = N(e, t);
   try {
-    const { stream: c, hopClients: i } = await M(a, e.host, e.port), l = new b(), d = I(e);
+    const { stream: c, hopClients: i } = await H(a, e.host, e.port), l = new b(), d = I(e);
     d.sock = c, l.on("ready", () => {
       l.shell({ term: "xterm-256color" }, (p, h) => {
         if (p) {
@@ -327,8 +327,8 @@ async function ze(e, t, n, s, r, o) {
           return;
         }
         const m = `${e.id}-${Date.now()}`;
-        _.set(m, { id: m, connectionId: e.id, client: l, stream: h }), F.set(m, i), h.on("data", (D) => r(D.toString("utf-8"))), h.on("close", () => {
-          _.delete(m), F.delete(m), l.end(), i.forEach((D) => D.end()), o();
+        _.set(m, { id: m, connectionId: e.id, client: l, stream: h }), U.set(m, i), h.on("data", (D) => r(m, D.toString("utf-8"))), h.on("close", () => {
+          _.delete(m), U.delete(m), l.end(), i.forEach((D) => D.end()), o(m);
         }), n(_.get(m));
       });
     }), l.on("error", (p) => {
@@ -347,8 +347,8 @@ function Ve(e, t, n, s, r) {
         return;
       }
       const l = `${e.id}-${Date.now()}`;
-      _.set(l, { id: l, connectionId: e.id, client: o, stream: i }), i.on("data", (d) => s(d.toString("utf-8"))), i.on("close", () => {
-        _.delete(l), o.end(), r();
+      _.set(l, { id: l, connectionId: e.id, client: o, stream: i }), i.on("data", (d) => s(l, d.toString("utf-8"))), i.on("close", () => {
+        _.delete(l), o.end(), r(l);
       }), t(_.get(l));
     });
   }), o.on("error", n), o.connect(a);
@@ -357,10 +357,10 @@ function Z(e, t, n, s, r, o) {
   var a;
   (a = e.proxyJump) != null && a.enabled ? ze(e, t, n, s, r, o) : Ve(e, n, s, r, o);
 }
-function H(e) {
+function J(e) {
   var n, s;
   const t = _.get(e);
-  t && ((n = t.stream) == null || n.end(), t.client.end(), (s = F.get(e)) == null || s.forEach((r) => r.end()), F.delete(e), _.delete(e));
+  t && ((n = t.stream) == null || n.end(), t.client.end(), (s = U.get(e)) == null || s.forEach((r) => r.end()), U.delete(e), _.delete(e));
 }
 function qe(e, t) {
   var s;
@@ -377,14 +377,14 @@ function Ge() {
 }
 function Ye() {
   for (const [e] of _)
-    H(e);
+    J(e);
 }
 async function Xe(e, t = []) {
   return new Promise((n) => {
     const s = Date.now();
     Z(e, t, (a) => {
       const c = Date.now() - s;
-      H(a.id), n({ success: !0, message: `Connected in ${c}ms`, latency: c });
+      J(a.id), n({ success: !0, message: `Connected in ${c}ms`, latency: c });
     }, (a) => n({ success: !1, message: a.message }), () => {
     }, () => {
     }), setTimeout(() => n({ success: !1, message: "Connection timed out (15s)" }), 15e3);
@@ -407,7 +407,7 @@ async function ee(e, t, n = []) {
     });
   });
   if ((o = e.proxyJump) != null && o.enabled) {
-    const a = U(e, n), { stream: c, hopClients: i } = await M(a, e.host, e.port), l = new b();
+    const a = N(e, n), { stream: c, hopClients: i } = await H(a, e.host, e.port), l = new b();
     return l.connect({ ...I(e), sock: c }), new Promise((d, p) => {
       l.on("ready", () => r(l, i).then(d).catch(p)), l.on("error", (h) => {
         i.forEach((m) => m.end()), p(h);
@@ -508,9 +508,9 @@ async function tt(e, t, n, s, r = []) {
     });
   });
   if ((c = e.proxyJump) != null && c.enabled) {
-    const i = U(e, r);
+    const i = N(e, r);
     s == null || s(`Đang kết nối qua ${i.length} hop(s)...`);
-    const { stream: l, hopClients: d } = await M(i, e.host, e.port || 22), p = new b();
+    const { stream: l, hopClients: d } = await H(i, e.host, e.port || 22), p = new b();
     return p.connect({ ...I(e), sock: l }), new Promise((h, m) => {
       p.on("ready", () => a(p, d).then(h).catch(m)), p.on("error", (D) => {
         d.forEach((v) => v.end()), m(D);
@@ -555,11 +555,11 @@ async function nt(e) {
 oe(import.meta.url);
 const te = S.dirname(ae(import.meta.url));
 process.env.APP_ROOT = S.join(te, "..");
-const R = process.env.VITE_DEV_SERVER_URL, gt = S.join(process.env.APP_ROOT, "dist-electron"), ne = S.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = R ? S.join(process.env.APP_ROOT, "public") : ne;
+const O = process.env.VITE_DEV_SERVER_URL, gt = S.join(process.env.APP_ROOT, "dist-electron"), ne = S.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = O ? S.join(process.env.APP_ROOT, "public") : ne;
 let x;
 function se() {
-  x = new z({
+  x = new V({
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -572,17 +572,17 @@ function se() {
       nodeIntegration: !1,
       contextIsolation: !0
     }
-  }), R ? x.loadURL(R) : x.loadFile(S.join(ne, "index.html"));
+  }), O ? x.loadURL(O) : x.loadFile(S.join(ne, "index.html"));
 }
 function f() {
-  const e = B();
+  const e = M();
   if (!e) throw new Error("Not authenticated");
   return e.id;
 }
 u.handle("auth:register", (e, t, n) => He(t, n));
 u.handle("auth:login", (e, t, n) => Je(t, n));
-u.handle("auth:logout", () => (Q(), { success: !0 }));
-u.handle("auth:current-user", () => B());
+u.handle("auth:logout", () => (F(), { success: !0 }));
+u.handle("auth:current-user", () => M());
 const re = "aes-256-gcm";
 function st(e, t) {
   if (!t) return JSON.stringify({ encrypted: !1, data: e });
@@ -608,7 +608,7 @@ function rt(e, t) {
   return i += c.final("utf8"), i;
 }
 u.handle("data:export", async (e, t) => {
-  const n = f(), s = we(n), r = JSON.stringify(s), o = S.join(A.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`), a = await O.showSaveDialog(x, {
+  const n = f(), s = we(n), r = JSON.stringify(s), o = S.join(A.getPath("documents"), `ssh-tool-backup-${Date.now()}.mmo-backup`), a = await L.showSaveDialog(x, {
     title: "Export Data",
     defaultPath: o,
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
@@ -616,20 +616,20 @@ u.handle("data:export", async (e, t) => {
   if (a.canceled || !a.filePath) return { success: !1, message: "Canceled" };
   try {
     const c = st(r, t);
-    return await q.writeFile(a.filePath, c, "utf8"), { success: !0 };
+    return await j.writeFile(a.filePath, c, "utf8"), { success: !0 };
   } catch (c) {
     return { success: !1, message: c.message };
   }
 });
 u.handle("data:import", async (e, t) => {
-  const n = f(), s = await O.showOpenDialog(x, {
+  const n = f(), s = await L.showOpenDialog(x, {
     title: "Import Data",
     properties: ["openFile"],
     filters: [{ name: "MMO Backup", extensions: ["mmo-backup"] }, { name: "All Files", extensions: ["*"] }]
   });
   if (s.canceled || s.filePaths.length === 0) return { success: !1, message: "Canceled" };
   try {
-    const r = await q.readFile(s.filePaths[0], "utf8"), o = rt(r, t), a = JSON.parse(o);
+    const r = await j.readFile(s.filePaths[0], "utf8"), o = rt(r, t), a = JSON.parse(o);
     if (!a.settings || !Array.isArray(a.connections))
       throw new Error("Invalid backup file format");
     return ye(n, a), { success: !0 };
@@ -638,13 +638,13 @@ u.handle("data:import", async (e, t) => {
   }
 });
 u.handle("connections:list", () => T(f()));
-u.handle("connections:get", (e, t) => L(f(), t));
-u.handle("connections:create", (e, t) => G(f(), t));
-u.handle("connections:update", (e, t, n) => Y(f(), t, n));
+u.handle("connections:get", (e, t) => B(f(), t));
+u.handle("connections:create", (e, t) => Y(f(), t));
+u.handle("connections:update", (e, t, n) => X(f(), t, n));
 u.handle("connections:delete", (e, t) => De(f(), t));
 u.handle("connections:duplicate", (e, t) => xe(f(), t));
 u.handle("ssh:connect", (e, t) => {
-  const n = f(), s = L(n, t);
+  const n = f(), s = B(n, t);
   if (!s) return { success: !1, message: "Connection not found" };
   const r = T(n);
   return new Promise((o) => {
@@ -657,17 +657,17 @@ u.handle("ssh:connect", (e, t) => {
       (a) => {
         o({ success: !1, message: a.message });
       },
-      (a) => {
-        x == null || x.webContents.send("ssh:data", t, a);
+      (a, c) => {
+        x == null || x.webContents.send("ssh:data", a, c);
       },
-      () => {
-        x == null || x.webContents.send("ssh:closed", t);
+      (a) => {
+        x == null || x.webContents.send("ssh:closed", a);
       }
     );
   });
 });
 u.handle("ssh:disconnect", (e, t) => {
-  H(t);
+  J(t);
 });
 u.on("ssh:input", (e, t, n) => {
   qe(t, n);
@@ -698,7 +698,7 @@ u.handle("workspaces:list", () => Se(f()));
 u.handle("workspaces:create", (e, t) => ke(f(), t));
 u.handle("workspaces:update", (e, t, n) => ve(f(), t, n));
 u.handle("workspaces:delete", (e, t) => be(f(), t));
-u.handle("folders:list", () => X(f()));
+u.handle("folders:list", () => Q(f()));
 u.handle("folders:list-by-workspace", (e, t) => Ce(f(), t));
 u.handle("folders:create", (e, t) => Ie(f(), t));
 u.handle("folders:update", (e, t, n) => Ee(f(), t, n));
@@ -714,7 +714,7 @@ u.handle("ssh-keys:create", (e, t) => Re(f(), t));
 u.handle("ssh-keys:update", (e, t, n) => Oe(f(), t, n));
 u.handle("ssh-keys:delete", (e, t) => Le(f(), t));
 u.handle("dialog:select-file", async (e, t) => {
-  const n = await O.showOpenDialog(x, {
+  const n = await L.showOpenDialog(x, {
     properties: ["openFile"],
     title: "Select SSH Private Key",
     filters: [{ name: "All Files", extensions: ["*"] }],
@@ -726,17 +726,17 @@ A.on("window-all-closed", () => {
   Ye(), process.platform !== "darwin" && (A.quit(), x = null);
 });
 A.on("activate", () => {
-  z.getAllWindows().length === 0 && se();
+  V.getAllWindows().length === 0 && (F(), se());
 });
 A.whenReady().then(() => {
-  se();
+  F(), se();
   function e() {
-    B() && (Q(), x && !x.isDestroyed() && x.webContents.send("app:lock-screen"));
+    M() && (F(), x && !x.isDestroyed() && x.webContents.send("app:lock-screen"));
   }
-  J.on("suspend", e), J.on("lock-screen", e);
+  W.on("suspend", e), W.on("lock-screen", e);
 });
 export {
   gt as MAIN_DIST,
   ne as RENDERER_DIST,
-  R as VITE_DEV_SERVER_URL
+  O as VITE_DEV_SERVER_URL
 };

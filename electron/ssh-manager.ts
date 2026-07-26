@@ -128,8 +128,8 @@ async function connectViaProxy(
   allConns: SSHConnection[],
   onReady: (session: SSHSession) => void,
   onError: (err: Error) => void,
-  onData: (data: string) => void,
-  onClose: () => void,
+  onData: (sessionId: string, data: string) => void,
+  onClose: (sessionId: string) => void,
 ): Promise<void> {
   const chain = resolveProxyChain(conn, allConns)
   try {
@@ -146,13 +146,13 @@ async function connectViaProxy(
         activeSessions.set(sessionId, { id: sessionId, connectionId: conn.id, client: targetClient, stream: shellStream })
         sessionJumpClients.set(sessionId, hopClients)
 
-        shellStream.on('data', (data: Buffer) => onData(data.toString('utf-8')))
+        shellStream.on('data', (data: Buffer) => onData(sessionId, data.toString('utf-8')))
         shellStream.on('close', () => {
           activeSessions.delete(sessionId)
           sessionJumpClients.delete(sessionId)
           targetClient.end()
           hopClients.forEach(c => c.end())
-          onClose()
+          onClose(sessionId)
         })
         onReady(activeSessions.get(sessionId)!)
       })
@@ -168,8 +168,8 @@ function connectDirect(
   conn: SSHConnection,
   onReady: (session: SSHSession) => void,
   onError: (err: Error) => void,
-  onData: (data: string) => void,
-  onClose: () => void,
+  onData: (sessionId: string, data: string) => void,
+  onClose: (sessionId: string) => void,
 ): void {
   const client = new Client()
   const config = buildConfig(conn)
@@ -181,8 +181,8 @@ function connectDirect(
       const sessionId = `${conn.id}-${Date.now()}`
       activeSessions.set(sessionId, { id: sessionId, connectionId: conn.id, client, stream })
 
-      stream.on('data', (data: Buffer) => onData(data.toString('utf-8')))
-      stream.on('close', () => { activeSessions.delete(sessionId); client.end(); onClose() })
+      stream.on('data', (data: Buffer) => onData(sessionId, data.toString('utf-8')))
+      stream.on('close', () => { activeSessions.delete(sessionId); client.end(); onClose(sessionId) })
       onReady(activeSessions.get(sessionId)!)
     })
   })
@@ -195,8 +195,8 @@ export function connect(
   allConns: SSHConnection[],
   onReady: (session: SSHSession) => void,
   onError: (err: Error) => void,
-  onData: (data: string) => void,
-  onClose: () => void,
+  onData: (sessionId: string, data: string) => void,
+  onClose: (sessionId: string) => void,
 ): void {
   if (conn.proxyJump?.enabled) {
     connectViaProxy(conn, allConns, onReady, onError, onData, onClose)

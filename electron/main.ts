@@ -210,11 +210,11 @@ ipcMain.handle('ssh:connect', (_e, connectionId: string) => {
       (err) => {
         resolve({ success: false, message: err.message })
       },
-      (data) => {
-        win?.webContents.send('ssh:data', connectionId, data)
+      (sessionId, data) => {
+        win?.webContents.send('ssh:data', sessionId, data)
       },
-      () => {
-        win?.webContents.send('ssh:closed', connectionId)
+      (sessionId) => {
+        win?.webContents.send('ssh:closed', sessionId)
       },
     )
   })
@@ -346,11 +346,13 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
+    auth.logout()
     createWindow()
   }
 })
 
 app.whenReady().then(() => {
+  auth.logout()
   createWindow()
 
   function handleScreenLock() {
